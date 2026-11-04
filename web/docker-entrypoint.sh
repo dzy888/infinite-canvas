@@ -13,10 +13,12 @@ sanitize_id() {
 
 GA4_ID=$(sanitize_id "${ANALYTICS_GA4_ID:-}")
 BAIDU_ID=$(sanitize_id "${ANALYTICS_BAIDU_ID:-}")
+CONSOLE_URL=$(printf '%s' "${NEW_API_CONSOLE_URL:-}" | tr -cd 'A-Za-z0-9:/._~-')
 
 cat > /usr/share/nginx/html/config.js <<EOF
 window.__RUNTIME_CONFIG__ = {
   ANALYTICS_GA4_ID: "${GA4_ID}",
-  ANALYTICS_BAIDU_ID: "${BAIDU_ID}"
+  ANALYTICS_BAIDU_ID: "${BAIDU_ID}",
+  NEW_API_CONSOLE_URL: "${CONSOLE_URL}"
 };
 EOF

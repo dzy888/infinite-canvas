@@ -8,6 +8,7 @@
 type RuntimeConfig = {
     ANALYTICS_GA4_ID?: string; // GA4 measurement ID (G-XXXX)
     ANALYTICS_BAIDU_ID?: string; // Baidu Analytics site ID
+    NEW_API_CONSOLE_URL?: string;
 };
 
 declare global {
@@ -27,3 +28,7 @@ function read(key: keyof RuntimeConfig, buildTime: string | undefined, fallback 
 
 export const ANALYTICS_GA4_ID = read("ANALYTICS_GA4_ID", import.meta.env.VITE_ANALYTICS_GA4_ID);
 export const ANALYTICS_BAIDU_ID = read("ANALYTICS_BAIDU_ID", import.meta.env.VITE_ANALYTICS_BAIDU_ID);
+
+// This is a public navigation URL. Authentication always uses the same-origin /api proxy.
+const consoleUrl = read("NEW_API_CONSOLE_URL", import.meta.env.VITE_NEW_API_CONSOLE_URL, import.meta.env.DEV ? "http://127.0.0.1:3000" : "");
+export const NEW_API_CONSOLE_URL = /^https?:\/\//i.test(consoleUrl) ? consoleUrl.replace(/\/+$/, "") : "";

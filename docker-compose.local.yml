@@ -5,5 +5,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
+    environment:
+      NEW_API_URL: ${NEW_API_URL:-http://host.docker.internal:3000}
+      NEW_API_CONSOLE_URL: ${NEW_API_CONSOLE_URL:-http://localhost:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped

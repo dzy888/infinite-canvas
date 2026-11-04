@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { useConfigStore } from "@/stores/use-config-store";
 import { usePromptSourceScheduler } from "@/hooks/use-prompt-source-scheduler";
+import { AuthSession } from "@/components/layout/auth-session";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
@@ -35,5 +36,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         else message.error(t("config.importedChannelBaseUrlInvalid"));
     }, [importChannelCredentials, message, openConfigDialog, t]);
 
-    return <>{children}</>;
+    return (
+        <>
+            <AuthSession />
+            {children}
+        </>
+    );
 }

@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useUserStore } from "@/stores/use-user-store";
+import { UserAccountMenu } from "@/components/layout/user-account-menu";
 
 type UserStatusActionsProps = {
     showConfig?: boolean;
@@ -23,6 +25,7 @@ type UserStatusActionsProps = {
 export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, onOpenPlugins }: UserStatusActionsProps) {
     const { i18n, t } = useTranslation();
     const theme = useThemeStore((state) => state.theme);
+    const user = useUserStore((state) => state.user);
     const setTheme = useThemeStore((state) => state.setTheme);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const canvasTheme = canvasThemes[theme];
@@ -47,7 +50,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <BookOpen className="size-4" />
                 </a>
             </span>
-            {showConfig ? (
+            {showConfig && user ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={() => openConfigDialog(false)} aria-label={t("navigation.config")} title={t("navigation.config")}>
                     <Settings2 className="size-4" />
                 </button>
@@ -67,6 +70,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <Keyboard className="size-4" />
                 </button>
             ) : null}
+            <UserAccountMenu />
         </div>
     );
 }

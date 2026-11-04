@@ -5,6 +5,10 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+- Login CAPTCHA selection: New API image/Turnstile choices should be reflected on the canvas login page. Verify image refresh, missing/incorrect/expired/replayed challenges, failed providers and rate-limited responses. Turnstile requires real Site Key/Secret Key configuration for its live verification test.
+
+- New API authentication: verify password login, encryption-enabled login, invalid credentials, 2FA/backup codes, passkey verification and Turnstile with real configured accounts. Verify protected-route return paths, reload/session expiry, backend outages, logout and tab synchronization. Use HTTPS with Secure cookies and exact trusted canvas/console origins in production. Canvas/assets remain browser-local and are not isolated by account. Registration and account management open the New API console.
+
 - DmxVideo branding and visual alignment: verify that the homepage, navigation, browser title, description and canvas logo use DmxVideo in both Chinese and English, and that the renamed logo and favicon load correctly; new visitors should default to light mode while saved preferences are preserved. Check desktop/mobile layouts, light/dark and Chinese/English switching, homepage links, settings dialogs, prompt previews and green canvas selection states.
 
 The current release needs manual verification in these areas:

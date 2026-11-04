@@ -130,6 +130,8 @@
 
 AI API Key、Base URL、画布、素材和生成记录默认保存在浏览器本地。
 
+本分支接入 New API 账号登录：先启动并初始化 New API（默认 `http://127.0.0.1:3000`），再启动画布（默认 `http://127.0.0.1:3001`）。画布内使用同一个 New API 用户名或邮箱和密码登录。模型调用仍需在渠道配置中填写 New API 签发的 API Key。
+
 ### 本地开发
 
 ```bash
@@ -140,15 +142,21 @@ bun install
 bun run dev
 ```
 
+登录验证码在 New API“系统设置 → 身份验证 → 机器人保护”中选择：默认本地图形验证码，也支持配置 Site Key/Secret Key 后使用 Cloudflare Turnstile。保存后刷新登录页即可使用。
+
+后端地址不同时，参考 `web/.env.example` 配置 `NEW_API_URL`；登录始终通过画布同源 `/api` 代理。`VITE_NEW_API_CONSOLE_URL` 为公开的账户控制台地址。
+
 ### Docker 运行
 
 ```bash
 git clone git@github.com:basketikun/infinite-canvas.git
 cd infinite-canvas
-docker compose up -d
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
-运行后默认端口3000，可访问 `http://localhost:3000`。
+运行后访问 `http://localhost:3001`。本地构建镜像默认通过 `host.docker.internal:3000` 连接宿主机 New API；同一 Docker 网络部署时将 `NEW_API_URL` 改为后端服务地址，并将 `NEW_API_CONSOLE_URL` 设为用户可访问的管理地址。
+
+HTTPS 部署时，New API 设置 `SESSION_COOKIE_SECURE=true`，并在 `SESSION_COOKIE_TRUSTED_URL` 中加入画布及控制台的精确 HTTPS Origin。账户会话使用内存访问令牌与 HttpOnly Cookie，不将登录凭据写入浏览器存储；账号登录不提供画布或素材的云同步、按账号隔离本地数据。
 
 首次打开后进入右上角配置，填入自己的 OpenAI 兼容 `Base URL` 和 `API Key`。
 

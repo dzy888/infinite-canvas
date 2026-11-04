@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 
 import { parseChangelog } from "./src/lib/release";
 
@@ -38,16 +38,22 @@ function localPluginsManifest(): Plugin {
     };
 }
 
-export default defineConfig({
-    base: process.env.VITE_BASE || "/",
-    plugins: [react(), localPluginsManifest()],
-    resolve: {
-        alias: {
-            "@": resolve(webDir, "src"),
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, webDir, "NEW_API_");
+    const newApiUrl = process.env.NEW_API_URL || env.NEW_API_URL || "http://127.0.0.1:3000";
+    return {
+        base: process.env.VITE_BASE || "/",
+        plugins: [react(), localPluginsManifest()],
+        resolve: {
+            alias: {
+                "@": resolve(webDir, "src"),
+            },
         },
-    },
-    define: {
-        __APP_VERSION__: JSON.stringify(localVersion),
-        __APP_RELEASES__: JSON.stringify(parseChangelog(localChangelog)),
-    },
+        define: {
+            __APP_VERSION__: JSON.stringify(localVersion),
+            __APP_RELEASES__: JSON.stringify(parseChangelog(localChangelog)),
+        },
+        server: { proxy: { "/api": { target: newApiUrl, changeOrigin: false } } },
+        preview: { proxy: { "/api": { target: newApiUrl, changeOrigin: false } } },
+    };
 });
