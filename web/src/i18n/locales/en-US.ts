@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "Dmxcode · Infinite Canvas",
-        description: "Dmxcode creative workspace. Connect images, video and ideas on an infinite canvas.",
+        title: "DmxVideo · Infinite Canvas",
+        description: "DmxVideo creative workspace. Connect images, video and ideas on an infinite canvas.",
     },
     theme: { toggle: "Toggle theme" },
     common: {

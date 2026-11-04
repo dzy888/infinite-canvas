@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "Dmxcode · 无限画布",
-        description: "Dmxcode 创作工作台，在无限画布中连接图片、视频与灵感。",
+        title: "DmxVideo · 无限画布",
+        description: "DmxVideo 创作工作台，在无限画布中连接图片、视频与灵感。",
     },
     theme: { toggle: "切换主题" },
     common: {

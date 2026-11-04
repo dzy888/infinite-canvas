@@ -38,9 +38,9 @@ export function AppTopNav() {
                 <header className="sticky top-0 z-20 h-[76px] shrink-0 border-b border-border bg-background/95 backdrop-blur-xl">
                     <div className="mx-auto flex h-full max-w-[1240px] items-stretch justify-between gap-3 px-5 sm:px-8">
                         <div className="flex min-w-0 items-center">
-                            <Link to="/" aria-label="Dmxcode" className="flex h-full shrink-0 items-center gap-3 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
-                                <img src="/dmxcode-logo.png" alt="" width={40} height={40} className="size-9 shrink-0 rounded-[10px] sm:size-10" />
-                                <span className="hidden text-[23px] font-semibold tracking-[-0.05em] min-[380px]:block">Dmxcode</span>
+                            <Link to="/" aria-label="DmxVideo" className="flex h-full shrink-0 items-center gap-3 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
+                                <img src="/dmxvideo-logo.png" alt="" width={40} height={40} className="size-9 shrink-0 rounded-[10px] sm:size-10" />
+                                <span className="hidden text-[23px] font-semibold tracking-[-0.05em] min-[380px]:block">DmxVideo</span>
                             </Link>
 
                             <button

@@ -35,7 +35,7 @@ export default function IndexPage() {
                 <div className={styles.radar} aria-hidden="true">
                     <div className={styles.radarSweep} />
                     <div className={styles.radarCore}>
-                        <img src="/dmxcode-logo.png" alt="" />
+                        <img src="/dmxvideo-logo.png" alt="" />
                     </div>
                     <i />
                     <i />
@@ -46,7 +46,7 @@ export default function IndexPage() {
                     <div className={styles.heroContent}>
                         <p className={styles.kicker}>
                             <span />
-                            DMXCODE / CREATIVE WORKSPACE
+                            DmxVideo / CREATIVE WORKSPACE
                         </p>
                         <h1 id="home-title" className={styles.title}>
                             {t("home.headline")}
@@ -167,16 +167,16 @@ export default function IndexPage() {
                         </Button>
                     </div>
                     <div className={styles.startMark} aria-hidden="true">
-                        <img src="/dmxcode-logo.png" alt="" />
-                        <span>DMXCODE</span>
+                        <img src="/dmxvideo-logo.png" alt="" />
+                        <span>DmxVideo</span>
                         <small>IMAGINE. CONNECT. CREATE.</small>
                     </div>
                 </div>
             </section>
             <footer className={`${styles.wrap} ${styles.footer}`}>
                 <Link to="/" className={styles.footerBrand}>
-                    <img src="/dmxcode-logo.png" alt="" />
-                    Dmxcode
+                    <img src="/dmxvideo-logo.png" alt="" />
+                    DmxVideo
                 </Link>
                 <span>
                     {t("home.credit")}{" "}

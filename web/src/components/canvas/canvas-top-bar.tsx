@@ -76,7 +76,7 @@ export function CanvasTopBar({
             <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between pl-1 pr-4">
                 <div className="pointer-events-auto flex min-w-0 items-center gap-2">
                     <button type="button" onClick={onHome} aria-label={t("canvas.home")} className="ml-3 mr-1 shrink-0 rounded-lg transition hover:opacity-80">
-                        <img src="/dmxcode-logo.png" alt="Dmxcode" width={30} height={30} className="size-[30px] rounded-lg" />
+                        <img src="/dmxvideo-logo.png" alt="DmxVideo" width={30} height={30} className="size-[30px] rounded-lg" />
                     </button>
                     <Tooltip title={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")}>
                         <button
