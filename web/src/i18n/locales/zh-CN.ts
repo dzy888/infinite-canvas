@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "无限画布",
-        description: "一个无限画布创作工具",
+        title: "Dmxcode · 无限画布",
+        description: "Dmxcode 创作工作台，在无限画布中连接图片、视频与灵感。",
     },
     theme: { toggle: "切换主题" },
     common: {
@@ -345,6 +345,23 @@ export default {
         darkTheme: "切换到深色主题",
     },
     home: {
+        headline: "让灵感",
+        headlineAccent: "自由生长",
+        lead: "从一个想法，到一幅图像、一段影片。连接你熟悉的模型，在无限画布上，展开下一种可能。",
+        createImage: "即刻生图",
+        workspaceLabel: "图片 · 视频 · 无限画布",
+        explore: "探索创作工具",
+        toolsLabel: "为创作而生",
+        toolsTitle: "一个想法，多种表达。",
+        toolsSubtitle: "在同一个工作台完成。",
+        toolsNote: "把生成、编排与灵感收藏放在一起，让创作自然衔接。",
+        showcaseLabel: "灵感档案",
+        startTitle: "下一次创作，",
+        startSubtitle: "从这里展开。",
+        startDescription: "连接你的模型渠道，选择常用模型，即可开始图片、视频与画布创作。",
+        configure: "配置我的模型",
+        credit: "基于开源项目",
+        tools: {"canvas": {"title": "无限画布，自由连接", "description": "把图片、文字与视频放在一起，连接节点，让零散的灵感长成完整作品。"}, "image": {"title": "从文字，到眼前的画面", "description": "文生图、参考图编辑与多图生成，在一次次尝试中，找到想要的表达。"}, "video": {"title": "让静止，成为故事", "description": "从一句描述或一张参考图出发，生成视频，延续画面之外的想象。"}},
         promptError: "获取提示词失败",
         description: "在 <canvas>无限画布</canvas> 中生成、连接和重组 <content>图片、文字与图形</content>，让创作从单次生成变成连续推演。",
         start: "开始使用",

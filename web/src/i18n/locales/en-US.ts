@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "Infinite Canvas",
-        description: "An infinite canvas creation tool",
+        title: "Dmxcode · Infinite Canvas",
+        description: "Dmxcode creative workspace. Connect images, video and ideas on an infinite canvas.",
     },
     theme: { toggle: "Toggle theme" },
     common: {
@@ -345,6 +345,23 @@ export default {
         darkTheme: "Switch to dark theme",
     },
     home: {
+        headline: "Make room",
+        headlineAccent: "for your ideas",
+        lead: "From a first thought to an image or a film. Connect your models and explore what comes next on an infinite canvas.",
+        createImage: "Create an image",
+        workspaceLabel: "IMAGE · VIDEO · INFINITE CANVAS",
+        explore: "Explore the tools",
+        toolsLabel: "BUILT FOR CREATING",
+        toolsTitle: "One idea. Many expressions.",
+        toolsSubtitle: "One creative workspace.",
+        toolsNote: "Generate, arrange and collect inspiration in one connected workflow.",
+        showcaseLabel: "THE INSPIRATION ARCHIVE",
+        startTitle: "Your next creation",
+        startSubtitle: "starts right here.",
+        startDescription: "Connect a provider and choose your models to start creating images, videos and canvas projects.",
+        configure: "Connect my models",
+        credit: "Built on the open-source project",
+        tools: {"canvas": {"title": "An infinite space to connect", "description": "Bring images, text and video together. Connect nodes and turn loose ideas into a complete work."}, "image": {"title": "From words to something you see", "description": "Generate images, edit with references and explore variations until the result feels right."}, "video": {"title": "Give a still image a story", "description": "Start with a description or a reference image and discover the story beyond the frame."}},
         promptError: "Failed to load prompts",
         description: "Generate, connect, and reshape <content>images, text, and graphics</content> in <canvas>Infinite Canvas</canvas>, turning one-off generations into a continuous creative process.",
         start: "Get started",

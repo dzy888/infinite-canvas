@@ -5,6 +5,8 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+- Dmxcode visual alignment: verify the homepage, navigation, favicon and canvas logo; new visitors should default to light mode while saved preferences are preserved. Check desktop/mobile layouts, light/dark and Chinese/English switching, homepage links, settings dialogs, prompt previews and green canvas selection states.
+
 The current release needs manual verification in these areas:
 
 - Saved model selection: save a canvas node with a model, then remove its provider or remove that model while another video model remains the default. Generation, retry and pending-video recovery should keep the unavailable model selected and open configuration instead of sending a request to the default or first provider. Re-selecting a valid model should allow generation. Changing only the API key on the same provider should preserve the model; switching a config node from a valid image model to video should still use the video default.

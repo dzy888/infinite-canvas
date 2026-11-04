@@ -1,32 +1,23 @@
-import { ArrowRight } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { App, Button, Image, Tag } from "antd";
-import { useNavigate } from "react-router-dom";
-import { Trans, useTranslation } from "react-i18next";
+import { ArrowDown, ArrowRight, ArrowUpRight, ImagePlus, Maximize2, Video } from "lucide-react";
+import { useEffect, useState } from "react";
+import { App, Button, Image } from "antd";
+import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-import { fetchPrompts, type Prompt } from "@/services/api/prompts";
-import { navigationTools } from "@/constant/navigation-tools";
 import i18n from "@/i18n";
-import { cn } from "@/lib/utils";
+import { fetchPrompts, type Prompt } from "@/services/api/prompts";
+import styles from "./home.module.css";
 
-function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children?: ReactNode }) {
-    return (
-        <span className="relative inline-block px-1">
-            {action === "highlight" ? (
-                <span className="absolute inset-x-0 bottom-0 top-1 rounded-sm opacity-45" style={{ backgroundColor: color }} />
-            ) : (
-                <span className="absolute inset-x-0 bottom-0 h-1 rounded-full opacity-80" style={{ backgroundColor: color }} />
-            )}
-            <span className="relative font-medium text-stone-800 dark:text-stone-200">{children}</span>
-        </span>
-    );
-}
+const tools = [
+    { slug: "canvas", icon: Maximize2 },
+    { slug: "image", icon: ImagePlus },
+    { slug: "video", icon: Video },
+] as const;
 
 export default function IndexPage() {
     const { message } = App.useApp();
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const [primaryTool] = navigationTools;
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -38,77 +29,167 @@ export default function IndexPage() {
     }, [message]);
 
     return (
-        <main className="relative h-full overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-stone-950 dark:bg-[radial-gradient(rgba(245,245,244,.18)_1px,transparent_1px)] dark:text-stone-100">
-            <section className="relative mx-auto min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden px-6">
-                <div className="pointer-events-none absolute left-[15%] top-24 size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
-                <div className="pointer-events-none absolute right-[23%] top-[48%] size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
-
-                <div className="relative flex min-h-[620px] flex-col items-center justify-center pt-10 text-center">
-                    <h1 className="ai-title-aurora max-w-5xl text-balance text-5xl font-semibold tracking-normal sm:text-7xl lg:text-8xl">{t("meta.title")}</h1>
-                    <p className="mt-8 max-w-3xl text-balance text-lg leading-8 text-stone-500 dark:text-stone-400">
-                        <Trans i18nKey="home.description" components={{ canvas: <Highlighter action="underline" color="#FF9800" />, content: <Highlighter action="highlight" color="#87CEFA" /> }} />
-                    </p>
-                    <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                        <Button type="primary" size="large" onClick={() => navigate(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-4" />} iconPlacement="end">
-                            {t("home.start")}
-                        </Button>
-                        <Button size="large" onClick={() => navigate("/canvas")}>
-                            {t("home.openCanvas")}
-                        </Button>
+        <main className={styles.page}>
+            <section className={styles.hero} aria-labelledby="home-title">
+                <div className={styles.grid} aria-hidden="true" />
+                <div className={styles.radar} aria-hidden="true">
+                    <div className={styles.radarSweep} />
+                    <div className={styles.radarCore}>
+                        <img src="/dmxcode-logo.png" alt="" />
+                    </div>
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                </div>
+                <div className={styles.wrap}>
+                    <div className={styles.heroContent}>
+                        <p className={styles.kicker}>
+                            <span />
+                            DMXCODE / CREATIVE WORKSPACE
+                        </p>
+                        <h1 id="home-title" className={styles.title}>
+                            {t("home.headline")}
+                            <br />
+                            <span>{t("home.headlineAccent")}</span>
+                            <span className={styles.period}>.</span>
+                        </h1>
+                        <div className={styles.heroBottom}>
+                            <p className={styles.lead}>{t("home.lead")}</p>
+                            <div className={styles.actions}>
+                                <Button type="primary" size="large" onClick={() => navigate("/canvas")} icon={<ArrowUpRight size={18} />} iconPlacement="end">
+                                    {t("home.openCanvas")}
+                                </Button>
+                                <Button size="large" onClick={() => navigate("/image")} icon={<ArrowRight size={18} />} iconPlacement="end">
+                                    {t("home.createImage")}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className={styles.heroFoot}>
+                        <span>
+                            <i />
+                            {t("home.workspaceLabel")}
+                        </span>
+                        <a href="#creative-tools">
+                            {t("home.explore")}
+                            <ArrowDown size={14} />
+                        </a>
                     </div>
                 </div>
-
-                <section className="relative mx-auto mb-20 max-w-6xl border-t border-stone-200 pt-12 dark:border-stone-800">
-                    <div className="mb-8 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-start">
-                        <div />
-                        <div className="max-w-2xl text-center">
-                            <h2 className="text-3xl font-semibold text-stone-950 dark:text-stone-100">{t("home.showcaseTitle")}</h2>
-                            <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">{t("home.showcaseDescription")}</p>
-                        </div>
-                        <Button type="link" onClick={() => navigate("/prompts")} className="justify-self-center md:justify-self-end" icon={<ArrowRight className="size-4" />} iconPlacement="end">
-                            {t("home.viewPrompts")}
-                        </Button>
+            </section>
+            <section id="creative-tools" className={`${styles.wrap} ${styles.tools}`} aria-labelledby="tools-title">
+                <div className={styles.sectionHead}>
+                    <div>
+                        <p className={styles.kicker}>
+                            <span />
+                            {t("home.toolsLabel")}
+                        </p>
+                        <h2 id="tools-title">
+                            {t("home.toolsTitle")}
+                            <br />
+                            <span>{t("home.toolsSubtitle")}</span>
+                        </h2>
                     </div>
-                    <div className="grid auto-rows-[210px] gap-4 md:grid-cols-4">
+                    <p className={styles.sectionNote}>{t("home.toolsNote")}</p>
+                </div>
+                <div className={styles.toolList}>
+                    {tools.map(({ slug, icon: Icon }, index) => (
+                        <Link key={slug} to={`/${slug}`} className={styles.tool}>
+                            <span className={styles.index}>0{index + 1}</span>
+                            <div className={styles.toolCopy}>
+                                <h3>{t(`home.tools.${slug}.title`)}</h3>
+                                <p>{t(`home.tools.${slug}.description`)}</p>
+                            </div>
+                            <div className={styles.toolVisual} aria-hidden="true">
+                                <Icon strokeWidth={1} />
+                                <span />
+                                <span />
+                            </div>
+                            <ArrowUpRight className={styles.toolArrow} size={24} strokeWidth={1.5} />
+                        </Link>
+                    ))}
+                </div>
+            </section>
+            {promptShowcase.length > 0 ? (
+                <section className={`${styles.wrap} ${styles.showcase}`} aria-labelledby="showcase-title">
+                    <div className={styles.sectionHead}>
+                        <div>
+                            <p className={styles.kicker}>
+                                <span />
+                                {t("home.showcaseLabel")}
+                            </p>
+                            <h2 id="showcase-title">{t("home.showcaseTitle")}</h2>
+                        </div>
+                        <Link to="/prompts" className={styles.textLink}>
+                            {t("home.viewPrompts")}
+                            <ArrowUpRight size={18} />
+                        </Link>
+                    </div>
+                    <div className={styles.showcaseGrid}>
                         {promptShowcase.map((item, index) => (
                             <button
                                 key={item.id}
                                 type="button"
+                                className={styles.prompt}
                                 onClick={() => {
                                     setPreviewIndex(index);
                                     setPreviewOpen(true);
                                 }}
-                                className={cn(
-                                    "group relative cursor-pointer overflow-hidden border border-stone-200 bg-stone-100 text-left dark:border-stone-800 dark:bg-stone-900",
-                                    index === 0 && "md:col-span-2 md:row-span-2",
-                                    index === 3 && "md:col-span-2",
-                                )}
                             >
-                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent p-4 text-white">
-                                    <div className="mb-2 flex flex-wrap gap-1.5">
-                                        {item.tags.slice(0, 2).map((tag) => (
-                                            <Tag key={tag} variant="filled" className="m-0 bg-white/15 text-[11px] text-white backdrop-blur">
-                                                {tag}
-                                            </Tag>
-                                        ))}
-                                    </div>
-                                    <h3 className="text-sm font-medium">{item.title}</h3>
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{item.prompt}</p>
+                                <div className={styles.promptImage}>
+                                    <img src={item.coverUrl} alt={item.title} loading="lazy" />
                                 </div>
+                                <span>
+                                    {item.title}
+                                    <ArrowUpRight size={16} />
+                                </span>
                             </button>
                         ))}
                     </div>
                 </section>
+            ) : null}
+            <section className={styles.start} aria-labelledby="start-title">
+                <div className={styles.wrap}>
+                    <div className={styles.startCopy}>
+                        <p className={styles.kicker}>
+                            <span />
+                            MAKE ROOM FOR IDEAS
+                        </p>
+                        <h2 id="start-title">
+                            {t("home.startTitle")}
+                            <br />
+                            {t("home.startSubtitle")}
+                        </h2>
+                        <p>{t("home.startDescription")}</p>
+                        <Button size="large" onClick={() => navigate("/config")} icon={<ArrowUpRight size={18} />} iconPlacement="end">
+                            {t("home.configure")}
+                        </Button>
+                    </div>
+                    <div className={styles.startMark} aria-hidden="true">
+                        <img src="/dmxcode-logo.png" alt="" />
+                        <span>DMXCODE</span>
+                        <small>IMAGINE. CONNECT. CREATE.</small>
+                    </div>
+                </div>
             </section>
-            <Image.PreviewGroup
-                preview={{
-                    open: previewOpen,
-                    current: previewIndex,
-                    onOpenChange: setPreviewOpen,
-                    onChange: setPreviewIndex,
-                }}
-            >
+            <footer className={`${styles.wrap} ${styles.footer}`}>
+                <Link to="/" className={styles.footerBrand}>
+                    <img src="/dmxcode-logo.png" alt="" />
+                    Dmxcode
+                </Link>
+                <span>
+                    {t("home.credit")}{" "}
+                    <a href="https://github.com/basketikun/infinite-canvas" target="_blank" rel="noopener noreferrer">
+                        Infinite Canvas ↗
+                    </a>
+                </span>
+                <Link to="/config">
+                    {t("navigation.config")}
+                    <ArrowUpRight size={14} />
+                </Link>
+            </footer>
+            <Image.PreviewGroup preview={{ open: previewOpen, current: previewIndex, onOpenChange: setPreviewOpen, onChange: setPreviewIndex }}>
                 <div className="hidden">
                     {promptShowcase.map((item) => (
                         <Image key={item.id} src={item.coverUrl} alt={item.title} />

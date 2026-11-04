@@ -3,7 +3,7 @@ import { theme as antdTheme } from "antd";
 
 const neutral = {
     light: {
-        primary: "#171717",
+        primary: "#0a0a0a",
         primaryHover: "#000000",
         primaryText: "#ffffff",
         elevatedBg: "#ffffff",
@@ -18,7 +18,7 @@ const neutral = {
         primary: "#fafafa",
         primaryHover: "#ffffff",
         primaryText: "#171717",
-        elevatedBg: "#1c1917",
+        elevatedBg: "#151515",
         itemHoverBg: "rgba(250, 250, 249, 0.08)",
         itemSelectedBg: "rgba(250, 250, 249, 0.12)",
         itemSelectedHoverBg: "rgba(250, 250, 249, 0.16)",
@@ -35,6 +35,13 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         cssVar: { key: dark ? "infinite-canvas-dark" : "infinite-canvas-light" },
         token: {
+            fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+            colorBgLayout: dark ? "#0a0a0a" : "#f8f8f5",
+            colorBgContainer: dark ? "#151515" : "#ffffff",
+            colorText: dark ? "#f7f7f2" : "#0a0a0a",
+            colorBorder: dark ? "#303030" : "#deded8",
+            colorSuccess: "#22c55e",
+            borderRadius: 10,
             colorPrimary: color.primary,
             colorInfo: color.primary,
             colorLink: color.primary,
@@ -49,6 +56,8 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
         components: {
             Button: {
                 primaryShadow: "none",
+                borderRadius: 24,
+                borderRadiusLG: 28,
             },
             Dropdown: {
                 colorBgElevated: color.elevatedBg,
