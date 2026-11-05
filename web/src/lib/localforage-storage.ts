@@ -1,34 +1,29 @@
-import localforage from "localforage";
 import type { StateStorage } from "zustand/middleware";
+import { accountLocalStorage, createAccountStorage } from "./account-storage";
 
-localforage.config({
-    name: "infinite-canvas",
-    storeName: "app_state",
-});
+const storage = createAccountStorage("app_state");
 
 export const localForageStorage: StateStorage = {
     getItem: async (name) => {
         if (typeof window === "undefined") return null;
         try {
-            return (await localforage.getItem<string>(name)) || null;
+            return (await storage.getItem<string>(name)) ?? accountLocalStorage.getItem(name);
         } catch {
-            return window.localStorage.getItem(name);
+            return accountLocalStorage.getItem(name);
         }
     },
     setItem: async (name, value) => {
         if (typeof window === "undefined") return;
         try {
-            await localforage.setItem(name, value);
+            await storage.setItem(name, value);
+            accountLocalStorage.removeItem(name);
         } catch {
-            window.localStorage.setItem(name, value);
+            accountLocalStorage.setItem(name, value);
         }
     },
     removeItem: async (name) => {
         if (typeof window === "undefined") return;
-        try {
-            await localforage.removeItem(name);
-        } catch {
-            window.localStorage.removeItem(name);
-        }
+        accountLocalStorage.removeItem(name);
+        await storage.removeItem(name);
     },
 };

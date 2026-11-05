@@ -3,6 +3,7 @@ import { persist, type PersistStorage, type StorageValue } from "zustand/middlew
 
 import { nanoid } from "nanoid";
 import i18n from "@/i18n";
+import { registerAccountFlush } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from "@/types/canvas";
@@ -44,6 +45,15 @@ const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects" | "deletedProjects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
+let pendingSave: (() => unknown) | null = null;
+function flushCanvasSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    const save = pendingSave;
+    pendingSave = null;
+    return save?.();
+}
+registerAccountFlush(flushCanvasSave);
 
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
@@ -58,9 +68,9 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         if (queuedPersistState && queuedPersistState.projects === nextState.projects && queuedPersistState.deletedProjects === nextState.deletedProjects) return;
         queuedPersistState = nextState;
         if (saveTimer) clearTimeout(saveTimer);
+        pendingSave = () => localForageStorage.setItem(name, JSON.stringify(value));
         saveTimer = setTimeout(() => {
-            saveTimer = null;
-            void localForageStorage.setItem(name, JSON.stringify(value));
+            void flushCanvasSave();
         }, 400);
     },
     removeItem: (name) => localForageStorage.removeItem(name),

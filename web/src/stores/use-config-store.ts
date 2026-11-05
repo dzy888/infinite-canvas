@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { localForageStorage } from "@/lib/localforage-storage";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
+import { usePlatformStore } from "@/stores/use-platform-store";
 
 export type ApiCallFormat = "openai" | "gemini";
 export type ModelCapability = "image" | "video" | "text" | "audio";
@@ -13,6 +15,10 @@ export type ChannelModel = {
     name: string;
     capability: ModelCapability;
     script?: string;
+    capabilities?: ModelCapability[];
+    apiFormat?: ApiCallFormat;
+    textEndpoint?: "chat" | "responses";
+    groupRatio?: number;
 };
 
 export type ModelChannel = {
@@ -25,6 +31,8 @@ export type ModelChannel = {
 };
 
 export type AiConfig = {
+    platformManaged?: boolean;
+    textEndpoint?: "chat" | "responses";
     channelMode: "remote" | "local";
     baseUrl: string;
     apiKey: string;
@@ -181,7 +189,8 @@ export function modelCapabilityOf(config: AiConfig, value: string): ModelCapabil
 
 export function modelMatchesCapability(config: AiConfig, value: string, capability?: ModelCapability) {
     if (!capability) return true;
-    return modelCapabilityOf(config, value) === capability;
+    const model = findChannelModel(config, value)?.model;
+    return model?.capabilities ? model.capabilities.includes(capability) : model?.capability === capability;
 }
 
 export function resolveModelForCapability(config: AiConfig, currentModel: string | undefined, capability: ModelCapability) {
@@ -192,24 +201,24 @@ export function resolveModelForCapability(config: AiConfig, currentModel: string
         const configuredCapability = modelCapabilityOf(config, model);
         // Keep unavailable selections visible so the readiness check blocks the
         // request. Only a known capability switch may choose another model.
-        if (!configuredCapability || configuredCapability === capability) return model;
+        if (!configuredCapability || modelMatchesCapability(config, model, capability)) return model;
     }
-    return fallbackModel;
+    return config.platformManaged ? selectableModelsByCapability(config, capability)[0] || "" : fallbackModel;
 }
 
 export function selectableModelsByCapability(config: AiConfig, capability?: ModelCapability) {
     if (!capability) return config.models;
-    return config.channels.flatMap((channel) => channel.models.filter((model) => model.capability === capability).map((model) => encodeChannelModel(channel.id, model.name)));
+    return config.channels.flatMap((channel) => channel.models.filter((model) => model.capabilities ? model.capabilities.includes(capability) : model.capability === capability).map((model) => encodeChannelModel(channel.id, model.name)));
 }
 
 /** The user script (if any) attached to a model; empty string means use the system default call. */
 export function resolveModelScript(config: AiConfig, value: string) {
-    return findChannelModel(config, value)?.model.script?.trim() || "";
+    return config.platformManaged ? "" : findChannelModel(config, value)?.model.script?.trim() || "";
 }
 
 function isAiConfigReady(config: AiConfig, model: string) {
     const match = findChannelModel(config, model);
-    return Boolean(match && match.channel.baseUrl.trim() && match.channel.apiKey.trim());
+    return Boolean(match && match.channel.baseUrl.trim() && (config.platformManaged || match.channel.apiKey.trim()));
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -247,6 +256,7 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
+            storage: createJSONStorage(() => localForageStorage),
             partialize: (state) => ({ config: state.config, webdav: state.webdav }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
@@ -293,7 +303,19 @@ export const useConfigStore = create<ConfigStore>()(
 
 export function useEffectiveConfig() {
     const config = useConfigStore((state) => state.config);
-    return useMemo(() => ({ ...config, channelMode: "local" as const }), [config]);
+    const models = usePlatformStore((state) => state.models);
+    return useMemo(() => {
+        const channels: ModelChannel[] = [{ id: "platform", name: "DmxVideo", baseUrl: "/api/canvas/relay", apiKey: "", apiFormat: "openai", models: models.map((model) => ({ name: model.name, capability: model.capabilities[0], capabilities: model.capabilities, apiFormat: model.api_format, textEndpoint: model.text_endpoint, groupRatio: model.group_ratio })) }];
+        const select = (value: string, capability: ModelCapability) => {
+            if (decodeChannelModel(value)?.channelId === "platform") return value;
+            const name = modelOptionName(value);
+            const available = channels[0].models.filter((model) => model.capabilities?.includes(capability));
+            const chosen = available.find((model) => model.name === name) || available[0];
+            return chosen ? encodeChannelModel("platform", chosen.name) : "";
+        };
+        return { ...config, platformManaged: true, channelMode: "remote" as const, channels, baseUrl: "/api/canvas/relay", apiKey: "", proxyEnabled: false,
+            models: modelOptionsFromChannels(channels), model: select(config.model, "image"), imageModel: select(config.imageModel, "image"), videoModel: select(config.videoModel, "video"), textModel: select(config.textModel, "text"), audioModel: select(config.audioModel, "audio") };
+    }, [config, models]);
 }
 
 /** Normalize a mixed list of raw model names or model objects into deduped ChannelModel entries. */
@@ -409,7 +431,7 @@ export function modelOptionLabel(config: AiConfig, value: string) {
     const decoded = decodeChannelModel(value);
     if (!decoded) return value;
     const channel = config.channels.find((item) => item.id === decoded.channelId);
-    return channel ? `${decoded.model}（${channel.name}）` : decoded.model;
+    return channel && !config.platformManaged ? `${decoded.model}（${channel.name}）` : decoded.model;
 }
 
 export function modelOptionsFromChannels(channels: ModelChannel[]) {
@@ -420,6 +442,8 @@ export function normalizeModelOptionValue(value: string | undefined, channels: M
     const model = (value || "").trim();
     if (!model) return "";
     const decoded = decodeChannelModel(model);
+    // Managed selections survive reloads; only the live catalog decides availability.
+    if (decoded?.channelId === "platform") return model;
     if (decoded) {
         const channel = channels.find((item) => item.id === decoded.channelId);
         return channel && channel.models.some((item) => item.name === decoded.model) ? model : "";
@@ -436,6 +460,12 @@ export function resolveModelChannel(config: AiConfig, value: string) {
 }
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {
+    if (config.platformManaged) {
+        const name = modelOptionName(value || config.model);
+        const entry = config.channels[0]?.models.find((model) => model.name === name);
+        if (!entry) throw new Error(i18n.t("platform.modelUnavailable"));
+        return { ...config, model: name, baseUrl: "/api/canvas/relay", apiKey: "", apiFormat: entry.apiFormat || "openai", textEndpoint: entry.textEndpoint || "chat" };
+    }
     const channel = resolveModelChannel(config, value);
     return {
         ...config,

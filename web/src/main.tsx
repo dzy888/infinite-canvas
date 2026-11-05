@@ -1,23 +1,28 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
-import "antd/dist/reset.css";
-import "streamdown/styles.css";
-import "./styles/globals.css";
-import { RouterProvider } from "react-router-dom";
+import { initializeAccountStorage, flushAccountStorage } from "@/lib/account-storage";
+import { restoreSession } from "@/services/api/new-api-auth";
+import { useUserStore } from "@/stores/use-user-store";
 
-import { AppProviders } from "@/components/layout/app-providers";
-import "@/i18n";
-import { initAnalytics } from "@/lib/analytics";
-import { router } from "@/router";
+// Persisted stores must not hydrate before the refresh cookie identifies the user.
+async function bootstrap() {
+    await restoreSession().catch(() => undefined);
+    const owner = useUserStore.getState().user?.id ?? null;
+    initializeAccountStorage(owner);
+    let unmount: (() => void) | undefined;
+    let switching = false;
+    useUserStore.subscribe((state) => {
+        if (switching || !["authenticated", "anonymous"].includes(state.phase) || (state.user?.id ?? null) === owner) return;
+        switching = true;
+        // Hide synchronously, before React can render the next account in the old stores.
+        document.getElementById("root")!.style.visibility = "hidden";
+        unmount?.();
+        void flushAccountStorage().finally(() => window.location.reload());
+    });
+    window.addEventListener("pagehide", () => {
+        void flushAccountStorage();
+    });
+    const { prepareApp, mountApp } = await import("./app");
+    await prepareApp();
+    if (!switching) unmount = mountApp();
+}
 
-initAnalytics();
-
-document.body.style.fontFamily = '"SF Pro Display","SF Pro Text","PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif';
-
-createRoot(document.getElementById("root")!).render(
-    <React.StrictMode>
-        <AppProviders>
-            <RouterProvider router={router} />
-        </AppProviders>
-    </React.StrictMode>,
-);
+void bootstrap();

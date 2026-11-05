@@ -1,4 +1,5 @@
 import axios from "axios";
+import { modelRequestHeaders, preparePlatformRequest } from "./new-api-platform";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
@@ -38,7 +39,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 
 function aiHeaders(config: AiConfig, contentType?: string) {
     return {
-        Authorization: `Bearer ${config.apiKey}`,
+        ...modelRequestHeaders(config),
         ...(contentType ? { "Content-Type": contentType } : {}),
     };
 }
@@ -70,6 +71,7 @@ function videoTaskFailed(message: string) {
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
+    await preparePlatformRequest(config);
     const selectedModel = (config.model || config.videoModel).trim();
     const requestConfig = resolveModelRequestConfig(config, selectedModel);
     const script = resolveModelScript(config, selectedModel);
@@ -80,11 +82,12 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
 }
 
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
+    await preparePlatformRequest(config);
     if (task.provider === "plugin") {
         const result = pluginVideoResults.get(task.id);
         return result ? { status: "completed", result } : { status: "failed", error: apiText("pluginVideoExpired") };
     }
-    const requestConfig = resolveModelRequestConfig(config, task.model);
+    const requestConfig = config.platformManaged ? { ...config, baseUrl: "/api/canvas/relay", apiKey: "", model: modelOptionName(task.model), apiFormat: "openai" as const } : resolveModelRequestConfig(config, task.model);
     assertVideoConfig(requestConfig, requestConfig.model);
     if (task.provider === "gemini") return pollGeminiVideoTask(requestConfig, task, options);
     return pollOpenAIVideoTask(requestConfig, task, options);
@@ -92,7 +95,7 @@ export async function pollVideoGenerationTask(config: AiConfig, task: VideoGener
 
 async function createPluginVideoTask(config: AiConfig, model: string, script: string, prompt: string, references: ReferenceImage[], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
     if (!config.baseUrl.trim()) throw new Error(apiText("baseUrlRequired"));
-    if (!config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
+    if (!config.platformManaged && !config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
     const refs = await Promise.all(references.map((image) => imageToDataUrl(image)));
     const videos = await Promise.all((options?.videos || []).map((video) => referenceMediaToFile(video, "ref.mp4", "invalidReferenceVideo", options)));
     const audios = await Promise.all((options?.audios || []).map((audio) => referenceMediaToFile(audio, "ref.mp3", "invalidReferenceAudio", options)));
@@ -194,7 +197,7 @@ async function pollOpenAIVideoTask(config: AiConfig, task: VideoGenerationTask, 
     try {
         const video = unwrapVideoResponse((await axios.get<ApiVideoResponse>(aiApiUrl(config, `/videos/${task.id}`), { headers: aiHeaders(config), signal: options?.signal })).data);
         const url = videoResultUrl(video);
-        if (url) return { status: "completed", result: await videoResultFromUrl(url, options) };
+        if (url && !config.platformManaged) return { status: "completed", result: await videoResultFromUrl(url, options) };
         if (video.status === "completed") {
             const content = await axios.get<Blob>(aiApiUrl(config, `/videos/${task.id}/content`), { headers: aiHeaders(config), responseType: "blob", signal: options?.signal });
             await assertVideoBlob(content.data);
@@ -267,7 +270,7 @@ async function pollGeminiVideoTask(config: AiConfig, task: VideoGenerationTask, 
 function assertVideoConfig(config: AiConfig, model: string) {
     if (!model) throw new Error(apiText("videoModelRequired"));
     if (!config.baseUrl.trim()) throw new Error(apiText("baseUrlRequired"));
-    if (!config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
+    if (!config.platformManaged && !config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
 }
 
 function geminiVideoBaseUrl(config: Pick<AiConfig, "baseUrl">) {

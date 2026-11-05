@@ -10,12 +10,14 @@ import { AuthError, getLoginSettings, restoreSession, safeReturnPath, signIn, si
 import { useUserStore } from "@/stores/use-user-store";
 import { ImageCaptcha, type ImageCaptchaHandle } from "./image-captcha";
 import type { ImageVerification, LoginChallenge, LoginSettings } from "@/types/auth";
+import { RegistrationForm } from "./registration-form";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
+    const registering = location.pathname === "/register";
     const user = useUserStore((state) => state.user);
     const [settings, setSettings] = useState<LoginSettings | null>(null);
     const [checking, setChecking] = useState(true);
@@ -131,18 +133,16 @@ export default function LoginPage() {
                         <br />
                         <span>{t("auth.welcomeAccent")}</span>
                     </h1>
-                    <p>{t("auth.sharedAccount")}</p>
                     <div className={styles.mark} aria-hidden="true">
                         <img src="/dmxvideo-logo.png" alt="" />
                         <i />
                         <i />
                     </div>
-                    <span className={styles.credit}>Powered by New API · Infinite Canvas</span>
                 </div>
                 <div className={styles.form}>
-                    <p className={styles.kicker}>{challenge ? "02 / VERIFICATION" : "01 / SIGN IN"}</p>
-                    <h2>{t(challenge ? "auth.verifyTitle" : "auth.signIn")}</h2>
-                    <p className={styles.description}>{t(challenge ? "auth.verifyDescription" : "auth.loginDescription")}</p>
+                    <p className={styles.kicker}>{registering ? "01 / CREATE ACCOUNT" : challenge ? "02 / VERIFICATION" : "01 / SIGN IN"}</p>
+                    <h2>{t(registering ? "auth.register" : challenge ? "auth.verifyTitle" : "auth.signIn")}</h2>
+                    {challenge ? <p className={styles.description}>{t("auth.verifyDescription")}</p> : null}
                     {checking ? (
                         <div className={styles.loading} role="status" aria-label={t("auth.checking")}>
                             <Spin />
@@ -164,8 +164,11 @@ export default function LoginPage() {
                                         {t("auth.retry")}
                                     </Button>
                                 </>
+                            ) : registering ? (
+                                <RegistrationForm settings={settings} destination={destination} />
                             ) : (
                                 <>
+                                    {(location.state as { registered?: boolean } | null)?.registered ? <Alert type="success" showIcon title={t("auth.registered")} className="!mb-5" /> : null}
                                     <Form form={form} layout="vertical" onFinish={submit} requiredMark={false} disabled={busy}>
                                         {challenge ? (
                                             canVerifyCode ? (
@@ -257,19 +260,15 @@ export default function LoginPage() {
                                             {t("auth.restart")}
                                         </Button>
                                     ) : null}
-                                    {NEW_API_CONSOLE_URL ? (
-                                        <div className={styles.links}>
+                                    <div className={styles.links}>
+                                        {NEW_API_CONSOLE_URL ? (
                                             <a href={`${NEW_API_CONSOLE_URL}/sign-in`} target="_blank" rel="noopener noreferrer">
                                                 {t("auth.otherMethods")}
                                                 <ArrowUpRight size={13} />
                                             </a>
-                                            {settings.register_enabled ? (
-                                                <a href={`${NEW_API_CONSOLE_URL}/sign-up`} target="_blank" rel="noopener noreferrer">
-                                                    {t("auth.register")}
-                                                </a>
-                                            ) : null}
-                                        </div>
-                                    ) : null}
+                                        ) : null}
+                                        {settings.register_enabled ? <Link to="/register" state={{ from: destination }}>{t("auth.register")}</Link> : null}
+                                    </div>
                                     <p className={styles.localNote}>{t("auth.localData")}</p>
                                 </>
                             )}

@@ -30,6 +30,8 @@ export type LoginSettings = {
     turnstile_check: boolean;
     turnstile_site_key?: string;
     register_enabled?: boolean;
+    password_register_enabled?: boolean;
+    email_verification?: boolean;
     user_agreement_enabled?: boolean;
     privacy_policy_enabled?: boolean;
 };

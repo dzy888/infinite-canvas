@@ -47,7 +47,7 @@ function isLoginChallenge(value: unknown): value is LoginChallenge {
     );
 }
 
-async function request<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+async function request<T>(path: string, body?: unknown, headers?: Record<string, string>, failureKey = "auth.loginFailed"): Promise<T> {
     let response: Response;
     try {
         response = await fetch(`/api${path}`, {
@@ -68,7 +68,7 @@ async function request<T>(path: string, body?: unknown, headers?: Record<string,
         throw new AuthError("auth.unavailable", response.status);
     }
     if (!response.ok || result.success !== true) {
-        let key = "auth.loginFailed";
+        let key = failureKey;
         if (response.status === 429) key = "auth.rateLimited";
         else if (response.status >= 500) key = "auth.unavailable";
         else if (result.code === "AUTH_FLOW_INVALID") key = "auth.flowExpired";
@@ -142,8 +142,7 @@ export function restoreSession(force = false): Promise<AuthBundle | null> {
             } catch (error) {
                 // The cookie may have been replaced by another login. Reconcile once without the stale SID.
                 if (!(error instanceof AuthError) || error.code !== "AUTH_SESSION_MISMATCH" || version !== epoch) throw error;
-                useUserStore.getState().clearSession();
-                useUserStore.getState().setPhase("checking");
+                useUserStore.setState({ user: null, session: null, phase: "checking" });
                 sid = undefined;
                 bundle = await request<AuthBundle>("/user/auth/refresh", {});
             }
@@ -199,6 +198,24 @@ export function watchAuthentication(): () => void {
 
 export function getImageCaptcha() {
     return request<{ id: string; image: string }>("/user/login/captcha");
+}
+
+export type Registration = { username: string; password: string; email?: string; verification_code?: string };
+
+export async function registerAccount(values: Registration, settings: LoginSettings, turnstile: string): Promise<void> {
+    if (!settings.register_enabled || !settings.password_register_enabled) throw new AuthError("auth.registrationDisabled");
+    if (settings.turnstile_check && !turnstile) throw new AuthError("auth.captchaFailed");
+    await request("/user/register", {
+        username: values.username.trim(),
+        password: values.password,
+        ...(settings.email_verification ? { email: values.email?.trim(), verification_code: values.verification_code?.trim() } : {}),
+    }, { "X-Turnstile-Token": turnstile }, "auth.registrationFailed");
+}
+
+export async function sendRegistrationCode(email: string, settings: LoginSettings, turnstile: string): Promise<void> {
+    if (!settings.register_enabled || !settings.password_register_enabled) throw new AuthError("auth.registrationDisabled");
+    if (settings.turnstile_check && !turnstile) throw new AuthError("auth.captchaFailed");
+    await request("/verification?" + new URLSearchParams({ email: email.trim() }), undefined, { "X-Turnstile-Token": turnstile }, "auth.emailCodeFailed");
 }
 
 export async function signIn(username: string, password: string, settings: LoginSettings, turnstile: string, image?: ImageVerification): Promise<AuthBundle | LoginChallenge> {
@@ -269,7 +286,7 @@ export async function signOut(): Promise<void> {
 export function safeReturnPath(value: unknown): string {
     if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\x00-\x1f]/.test(value)) return "/canvas";
     const path = new URL(value, "https://canvas.invalid");
-    if (path.origin !== "https://canvas.invalid" || path.pathname === "/login") return "/canvas";
+    if (path.origin !== "https://canvas.invalid" || ["/login", "/register"].includes(path.pathname)) return "/canvas";
     return `${path.pathname}${path.search}${path.hash}`;
 }
 

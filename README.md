@@ -128,9 +128,9 @@
 
 ## 快速开始
 
-AI API Key、Base URL、画布、素材和生成记录默认保存在浏览器本地。
+画布、素材和生成记录保存在浏览器本地；模型目录、余额和消费记录从 New API 获取。
 
-本分支接入 New API 账号登录：先启动并初始化 New API（默认 `http://127.0.0.1:3000`），再启动画布（默认 `http://127.0.0.1:3001`）。画布内使用同一个 New API 用户名或邮箱和密码登录。模型调用仍需在渠道配置中填写 New API 签发的 API Key。
+本分支接入 New API 账号登录：先启动并初始化 New API（默认 `http://127.0.0.1:3000`），再启动画布（默认 `http://127.0.0.1:3001`）。画布内可注册账号，并使用同一个 New API 用户名或邮箱和密码登录。登录后只需选择模型，无需填写 API Key、Base URL 或渠道。右上角头像菜单 → 账户中心可查看余额和消费记录。前后端需要同时使用包含本次改动的版本，并重启服务。
 
 ### 本地开发
 
@@ -144,7 +144,7 @@ bun run dev
 
 登录验证码在 New API“系统设置 → 身份验证 → 机器人保护”中选择：默认本地图形验证码，也支持配置 Site Key/Secret Key 后使用 Cloudflare Turnstile。保存后刷新登录页即可使用。
 
-后端地址不同时，参考 `web/.env.example` 配置 `NEW_API_URL`；登录始终通过画布同源 `/api` 代理。`VITE_NEW_API_CONSOLE_URL` 为公开的账户控制台地址。
+后端地址不同时，参考 `web/.env.example` 配置 `NEW_API_URL`；登录和模型调用均通过画布同源 `/api` 代理；浏览器不访问上游渠道，也不持有渠道密钥。账户中心位于画布内的 `/account`，模型广场位于 `/pricing`。设置 `VITE_NEW_API_CONSOLE_URL`（容器运行时用 `NEW_API_CONSOLE_URL`）指向 New API 控制台，直接嵌入其原有模型广场；控制台与画布须使用相同浏览器主机名和协议以共享登录 Cookie（本地可用 `127.0.0.1:3000` / `127.0.0.1:3001`，不要混用 localhost）。先构建更新后的 `new-api/web` 并重启 Go 服务，嵌入样式才会生效。生产环境配置画布和控制台的精确可信 Origin。
 
 ### Docker 运行
 
@@ -154,13 +154,22 @@ cd infinite-canvas
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-运行后访问 `http://localhost:3001`。本地构建镜像默认通过 `host.docker.internal:3000` 连接宿主机 New API；同一 Docker 网络部署时将 `NEW_API_URL` 改为后端服务地址，并将 `NEW_API_CONSOLE_URL` 设为用户可访问的管理地址。
+运行后访问 `http://localhost:3001`。本地构建镜像默认通过 `host.docker.internal:3000` 连接宿主机 New API；同一 Docker 网络部署时将 `NEW_API_URL` 改为后端服务地址。
 
-HTTPS 部署时，New API 设置 `SESSION_COOKIE_SECURE=true`，并在 `SESSION_COOKIE_TRUSTED_URL` 中加入画布及控制台的精确 HTTPS Origin。账户会话使用内存访问令牌与 HttpOnly Cookie，不将登录凭据写入浏览器存储；账号登录不提供画布或素材的云同步、按账号隔离本地数据。
+HTTPS 部署时，New API 设置 `SESSION_COOKIE_SECURE=true`，并在 `SESSION_COOKIE_TRUSTED_URL` 中加入画布及控制台的精确 HTTPS Origin。账户会话使用内存访问令牌与 HttpOnly Cookie，不将登录凭据写入浏览器存储；画布、素材、媒体文件、生成记录与配置按账号隔离保存在当前浏览器；登录不提供自动云同步。旧版未归属账号的数据原样保留，不会自动分配给任一账号。
 
-首次打开后进入右上角配置，填入自己的 OpenAI 兼容 `Base URL` 和 `API Key`。
+管理员在 New API 中配置：
 
-如果默认的OpenAI接口调用方式与您的API不同，可自定义生图/视频脚本调用。
+1. 启用渠道并配置上游密钥、模型和可用分组。
+2. 配置用户所属分组、可用分组、Auto 分组顺序、模型定价及分组倍率；确保账号有余额或可用套餐。启用模型广场/定价模块，画布复用其现有 `/api/pricing` 接口（也支持设置为登录后访问）。
+3. 对自定义模型名，在模型元数据中声明正确的端点类型（例如 `image-generation`、`openai-video`）；Gemini 图片模型使用 Gemini 协议。无法识别的自定义模型需要先补全元数据。
+4. 重启更新后的 New API，再运行画布的 `bun run dev`；访问 `http://127.0.0.1:3001`。
+
+同一模型只展示一次：先选用户所属分组，再按后台 Auto 顺序，最后按名称排序选择其他已授权分组；不按最低价选择，也不在失败时静默切换分组。卡片上的倍率为有效分组倍率，最终费用仍由模型定价与实际用量决定。需要不同定价档位由用户自行选择时，应配置不同的模型别名。
+
+模型、分组和有效倍率直接复用 `/api/pricing`；余额复用 `/api/user/self`，日志复用 `/api/log/self`。仅 `/api/canvas/relay/*` 保留登录会话到现有中继的必要适配。请求复用 New API 的渠道选择、限流、预扣、结算及异步失败退款逻辑，不创建 API 令牌。图片、文本、音频及 OpenAI 视频协议使用现有中继；自定义视频供应商须在 New API 配置支持 `openai_video` 的任务插件或适配器。
+
+当前已通过前端类型检查、构建、账号接口测试、浏览器模拟验收，以及内存 SQLite 下的完整图片请求、扣费、任务归属与退款测试。真实上游渠道、邮件注册、PostgreSQL 和 Redis 仍需使用部署配置联调。
 
 ## 效果展示
 

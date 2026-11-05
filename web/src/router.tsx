@@ -12,6 +12,8 @@ import ImagePage from "@/pages/image";
 import NotFound from "@/pages/not-found";
 import PromptsPage from "@/pages/prompts";
 import VideoPage from "@/pages/video";
+import PricingPage from "@/pages/pricing";
+import AccountPage from "@/pages/account";
 import LoginPage from "@/pages/login";
 
 export const router = createBrowserRouter([
@@ -33,11 +35,14 @@ export const router = createBrowserRouter([
                     { path: "/assets", element: <AssetsPage /> },
                     { path: "/canvas", element: <CanvasPage /> },
                     { path: "/canvas/:id", element: <CanvasProjectPage /> },
+                    { path: "/pricing", element: <PricingPage /> },
+                    { path: "/account", element: <AccountPage /> },
                     { path: "/config", element: <ConfigPage /> },
                 ],
             },
         ],
     },
-    { path: "/login", element: <LoginPage /> },
+    { path: "/login", element: <LoginPage key="login" /> },
+    { path: "/register", element: <LoginPage key="register" /> },
     { path: "*", element: <NotFound /> },
 ]);

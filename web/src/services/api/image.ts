@@ -1,4 +1,5 @@
 import axios from "axios";
+import { modelRequestHeaders, preparePlatformRequest } from "./new-api-platform";
 
 import i18n from "@/i18n";
 import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, withLocalProxy, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
@@ -316,7 +317,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 
 function aiHeaders(config: AiConfig, contentType?: string) {
     return {
-        Authorization: `Bearer ${config.apiKey}`,
+        ...modelRequestHeaders(config),
         ...(contentType ? { "Content-Type": contentType } : {}),
     };
 }
@@ -337,9 +338,9 @@ function geminiApiUrl(config: Pick<AiConfig, "baseUrl" | "model">, action?: "gen
     return withLocalProxy(`${baseUrl}/models/${encodeURIComponent(geminiModelName(config.model))}:${action}`);
 }
 
-function geminiHeaders(config: Pick<AiConfig, "apiKey">) {
+function geminiHeaders(config: Pick<AiConfig, "apiKey" | "platformManaged">) {
     return {
-        "x-goog-api-key": config.apiKey,
+        ...(config.platformManaged ? modelRequestHeaders(config) : { "x-goog-api-key": config.apiKey }),
         "Content-Type": "application/json",
     };
 }
@@ -692,6 +693,7 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
 }
 
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
+    await preparePlatformRequest(config);
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const script = resolveModelScript(config, config.model || config.imageModel);
@@ -752,6 +754,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
 }
 
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
+    await preparePlatformRequest(config);
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
@@ -819,6 +822,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
 }
 
 export async function requestImageQuestion(config: AiConfig, messages: AiTextMessage[], onDelta: (text: string) => void, options?: RequestOptions) {
+    await preparePlatformRequest(config);
     const requestConfig = resolveModelRequestConfig(config, config.model || config.textModel);
     const script = resolveModelScript(config, config.model || config.textModel);
     if (script) {
@@ -842,6 +846,12 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
         if (requestConfig.apiFormat === "gemini") {
             const answer = (await requestGeminiStreamingResponse(requestConfig, toGeminiBody(requestConfig, messages), onDelta, options)).content || apiText("noContent");
             if (answer === apiText("noContent")) onDelta(answer);
+            return answer;
+        }
+        if (requestConfig.platformManaged && requestConfig.textEndpoint === "chat") {
+            const response = await axios.post<{ choices?: Array<{ message?: { content?: string } }> }>(aiApiUrl(requestConfig, "/chat/completions"), { model: requestConfig.model, messages: withSystemMessage(requestConfig, messages), stream: false }, { headers: aiHeaders(requestConfig, "application/json"), signal: options?.signal });
+            const answer = response.data.choices?.[0]?.message?.content || apiText("noContent");
+            onDelta(answer);
             return answer;
         }
         const answer = (await requestStreamingResponse(requestConfig, {
@@ -868,7 +878,7 @@ export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKe
         }
         const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(config.baseUrl, "/models"), {
             headers: {
-                Authorization: `Bearer ${config.apiKey}`,
+                ...modelRequestHeaders(config),
             },
         });
         return (response.data.data || [])

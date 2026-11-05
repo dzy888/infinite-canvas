@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { AuthError, clearAuthentication, restoreSession, safeReturnPath, signIn as authenticate, signOut, verifyLogin } from "./new-api-auth";
+import { AuthError, clearAuthentication, restoreSession, safeReturnPath, registerAccount, sendRegistrationCode, signIn as authenticate, signOut, verifyLogin } from "./new-api-auth";
 import { useUserStore } from "@/stores/use-user-store";
 import type { AuthBundle, LoginChallenge, LoginSettings } from "@/types/auth";
 
@@ -241,4 +241,55 @@ test("Turnstile mode sends its token in a header and does not require an image c
 test("an empty 429 response is reported as rate limited", async () => {
     serve(() => new Response(null, { status: 429 }));
     await assert.rejects(signIn("alice", "password", settings, ""), (error: unknown) => error instanceof AuthError && error.key === "auth.rateLimited");
+});
+
+const registrationSettings: LoginSettings = { ...settings, register_enabled: true, password_register_enabled: true };
+
+test("registration sends only account fields and never creates a login session", async () => {
+    serve(() => response({ success: true }));
+    await registerAccount({ username: " alice ", password: "example-password", email: "ignored@example.com" }, registrationSettings, "");
+    assert.equal(requests[0].url, "/api/user/register");
+    assert.equal(requests[0].options?.credentials, "same-origin");
+    assert.deepEqual(JSON.parse(String(requests[0].options?.body)), { username: "alice", password: "example-password" });
+    assert.equal(useUserStore.getState().session, null);
+    assert.equal(notifications.length, 0);
+});
+
+test("registration gates and missing Turnstile proof prevent account and email submissions", async () => {
+    serve(() => response({ success: true }));
+    for (const options of [
+        { ...registrationSettings, register_enabled: false },
+        { ...registrationSettings, password_register_enabled: false },
+        { ...registrationSettings, turnstile_check: true },
+    ]) {
+        await assert.rejects(registerAccount({ username: "alice", password: "example-password" }, options, ""));
+        await assert.rejects(sendRegistrationCode("alice@example.com", options, ""));
+    }
+    assert.equal(requests.length, 0);
+});
+
+test("email verification uses encoded email and a separate Turnstile proof per request", async () => {
+    serve(() => response({ success: true }));
+    const options = { ...registrationSettings, turnstile_check: true, email_verification: true };
+    await sendRegistrationCode(" alice+canvas@example.com ", options, "email-proof");
+    await registerAccount({ username: "alice", password: "example-password", email: " alice+canvas@example.com ", verification_code: " 123456 " }, options, "register-proof");
+    assert.equal(new URL(requests[0].url, "http://localhost").searchParams.get("email"), "alice+canvas@example.com");
+    assert.equal(requests[0].options?.method, "GET");
+    assert.equal((requests[0].options?.headers as Record<string, string>)["X-Turnstile-Token"], "email-proof");
+    assert.equal((requests[1].options?.headers as Record<string, string>)["X-Turnstile-Token"], "register-proof");
+    assert.deepEqual(JSON.parse(String(requests[1].options?.body)), { username: "alice", password: "example-password", email: "alice+canvas@example.com", verification_code: "123456" });
+});
+
+test("registration and email failures are generic and rate limits remain visible", async () => {
+    serve(() => response({ success: false, message: "private account or SMTP details" }));
+    await assert.rejects(registerAccount({ username: "alice", password: "example-password" }, registrationSettings, ""), (error: unknown) => error instanceof AuthError && error.key === "auth.registrationFailed");
+    await assert.rejects(sendRegistrationCode("alice@example.com", registrationSettings, ""), (error: unknown) => error instanceof AuthError && error.key === "auth.emailCodeFailed");
+    serve(() => response({ success: false }, 429));
+    await assert.rejects(sendRegistrationCode("alice@example.com", registrationSettings, ""), (error: unknown) => error instanceof AuthError && error.key === "auth.rateLimited");
+    assert.equal(useUserStore.getState().session, null);
+});
+
+test("authentication routes are never accepted as login return destinations", () => {
+    assert.equal(safeReturnPath("/register?next=/canvas"), "/canvas");
+    assert.equal(safeReturnPath("/login"), "/canvas");
 });

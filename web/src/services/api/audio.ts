@@ -1,4 +1,5 @@
 import axios from "axios";
+import { modelRequestHeaders, preparePlatformRequest } from "./new-api-platform";
 
 import i18n from "@/i18n";
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
@@ -15,12 +16,13 @@ function aiApiUrl(config: AiConfig, path: string) {
 
 function aiHeaders(config: AiConfig) {
     return {
-        Authorization: `Bearer ${config.apiKey}`,
+        ...modelRequestHeaders(config),
         "Content-Type": "application/json",
     };
 }
 
 export async function requestAudioGeneration(config: AiConfig, prompt: string, options?: RequestOptions): Promise<Blob> {
+    await preparePlatformRequest(config);
     const requestConfig = resolveModelRequestConfig(config, config.model || config.audioModel);
     const model = requestConfig.model.trim();
     const format = normalizeAudioFormatValue(config.audioFormat);
@@ -88,7 +90,7 @@ export async function storeGeneratedAudio(blob: Blob, format = "mp3"): Promise<U
 function assertAudioConfig(config: AiConfig, model: string) {
     if (!model) throw new Error(apiText("audioModelRequired"));
     if (!config.baseUrl.trim()) throw new Error(apiText("baseUrlRequired"));
-    if (!config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
+    if (!config.platformManaged && !config.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
     if (config.apiFormat === "gemini") throw new Error(apiText("geminiAudioUnsupported"));
 }
 

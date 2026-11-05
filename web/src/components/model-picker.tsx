@@ -86,6 +86,7 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
 }
 
 function emptyModelLabel(config: AiConfig, capability?: ModelCapability) {
+    if (config.platformManaged) return i18n.t("platform.noModels");
     const label = capability ? i18n.t(`settingsPanels.model.capabilities.${capability}`) : "";
     if (capability && config.models.length) return i18n.t("settingsPanels.model.assign", { capability: label });
     return config.models.length ? i18n.t("settingsPanels.model.noMatch", { capability: label }) : i18n.t("settingsPanels.model.addFirst");

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { App, Button, Dropdown } from "antd";
-import { ArrowUpRight, LogIn, LogOut, UserRound } from "lucide-react";
+import { LogIn, LogOut, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { NEW_API_CONSOLE_URL } from "@/constant/runtime-config";
 import { AuthError, signOut } from "@/services/api/new-api-auth";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -40,19 +39,7 @@ export function UserAccountMenu() {
             menu={{
                 items: [
                     { key: "identity", label: user.display_name || user.username, disabled: true },
-                    ...(NEW_API_CONSOLE_URL
-                        ? [
-                              {
-                                  key: "account",
-                                  icon: <ArrowUpRight size={14} />,
-                                  label: (
-                                      <a href={NEW_API_CONSOLE_URL} target="_blank" rel="noopener noreferrer">
-                                          {t("auth.manageAccount")}
-                                      </a>
-                                  ),
-                              },
-                          ]
-                        : []),
+                    { key: "account", icon: <UserRound size={14} />, label: t("platform.account"), onClick: () => navigate("/account") },
                     { type: "divider" as const },
                     { key: "logout", icon: <LogOut size={14} />, label: t("auth.signOut"), disabled: busy, onClick: () => void logout() },
                 ],
