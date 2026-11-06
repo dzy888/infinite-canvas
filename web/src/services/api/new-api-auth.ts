@@ -127,11 +127,11 @@ async function lockSession<T>(action: () => Promise<T>): Promise<T> {
 
 export function restoreSession(force = false): Promise<AuthBundle | null> {
     const state = useUserStore.getState();
+    if (refreshPending) return refreshPending;
     if (!force && state.session && state.session.access_expires_at * 1000 > Date.now()) return Promise.resolve(state.session);
     if (!force && state.phase === "anonymous") return Promise.resolve(null);
-    if (refreshPending) return refreshPending;
     const version = epoch;
-    state.setPhase("checking");
+    if (!state.session) state.setPhase("checking");
     refreshPending = lockSession(async () => {
         if (version !== epoch) return useUserStore.getState().session;
         let sid = useUserStore.getState().session?.session.sid;
@@ -142,7 +142,6 @@ export function restoreSession(force = false): Promise<AuthBundle | null> {
             } catch (error) {
                 // The cookie may have been replaced by another login. Reconcile once without the stale SID.
                 if (!(error instanceof AuthError) || error.code !== "AUTH_SESSION_MISMATCH" || version !== epoch) throw error;
-                useUserStore.setState({ user: null, session: null, phase: "checking" });
                 sid = undefined;
                 bundle = await request<AuthBundle>("/user/auth/refresh", {});
             }
@@ -171,7 +170,8 @@ export function watchAuthentication(): () => void {
         if (!value || typeof value !== "object") return;
         const event = value as { kind?: string; source?: string };
         if (event.kind !== "changed" || typeof event.source !== "string" || event.source === source) return;
-        clearAuthentication();
+        // Reconcile first: a notification from another tab may still identify the same account.
+        // Clearing to anonymous here reloads the document before we know whether identity changed.
         reconcile();
     };
     const storage = (event: StorageEvent) => {
@@ -205,11 +205,16 @@ export type Registration = { username: string; password: string; email?: string;
 export async function registerAccount(values: Registration, settings: LoginSettings, turnstile: string): Promise<void> {
     if (!settings.register_enabled || !settings.password_register_enabled) throw new AuthError("auth.registrationDisabled");
     if (settings.turnstile_check && !turnstile) throw new AuthError("auth.captchaFailed");
-    await request("/user/register", {
-        username: values.username.trim(),
-        password: values.password,
-        ...(settings.email_verification ? { email: values.email?.trim(), verification_code: values.verification_code?.trim() } : {}),
-    }, { "X-Turnstile-Token": turnstile }, "auth.registrationFailed");
+    await request(
+        "/user/register",
+        {
+            username: values.username.trim(),
+            password: values.password,
+            ...(settings.email_verification ? { email: values.email?.trim(), verification_code: values.verification_code?.trim() } : {}),
+        },
+        { "X-Turnstile-Token": turnstile },
+        "auth.registrationFailed",
+    );
 }
 
 export async function sendRegistrationCode(email: string, settings: LoginSettings, turnstile: string): Promise<void> {
@@ -286,7 +291,7 @@ export async function signOut(): Promise<void> {
 export function safeReturnPath(value: unknown): string {
     if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\x00-\x1f]/.test(value)) return "/canvas";
     const path = new URL(value, "https://canvas.invalid");
-    if (path.origin !== "https://canvas.invalid" || ["/login", "/register"].includes(path.pathname)) return "/canvas";
+    if (path.origin !== "https://canvas.invalid" || ["/login", "/register", "/forgot-password", "/user/reset"].includes(path.pathname)) return "/canvas";
     return `${path.pathname}${path.search}${path.hash}`;
 }
 
@@ -310,4 +315,22 @@ async function encryptedPassword(password: string) {
         ciphertext = ["v2", base64(wrapped), base64(nonce.buffer), base64(encrypted)].join(".");
     }
     return { password_encrypted: ciphertext, encryption_key_id: kid };
+}
+
+export function publicDocument(kind: "user-agreement" | "privacy-policy") {
+    return request<string>("/" + kind, undefined, undefined, "auth.documentFailed");
+}
+export function sendPasswordReset(email: string, settings: LoginSettings, turnstile: string) {
+    const query = new URLSearchParams({ email: email.trim() });
+    if (settings.turnstile_check && !turnstile) throw new AuthError("auth.captchaFailed");
+    return request<void>("/reset_password?" + query, undefined, settings.turnstile_check ? { "X-Turnstile-Token": turnstile } : undefined, "auth.resetFailed");
+}
+export async function completePasswordReset(email: string, token: string) {
+    const version = epoch;
+    const password = await request<string>("/user/reset", { email, token }, undefined, "auth.resetExpired");
+    if (version !== epoch) throw new AuthError("auth.sessionChanged");
+    if (typeof password !== "string" || !password) throw new AuthError("auth.invalidResponse");
+    clearAuthentication();
+    announceChange();
+    return password;
 }

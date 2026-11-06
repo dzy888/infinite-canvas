@@ -47,13 +47,14 @@ export default defineConfig(({ mode }) => {
         resolve: {
             alias: {
                 "@": resolve(webDir, "src"),
+                "@actalk/inkos-core": resolve(webDir, "../story-service/vendor/core/src"),
             },
         },
         define: {
             __APP_VERSION__: JSON.stringify(localVersion),
             __APP_RELEASES__: JSON.stringify(parseChangelog(localChangelog)),
         },
-        server: { proxy: { "/api": { target: newApiUrl, changeOrigin: false } } },
-        preview: { proxy: { "/api": { target: newApiUrl, changeOrigin: false } } },
+        server: { proxy: { "/inkos-api": { target: process.env.STORY_URL || "http://127.0.0.1:3002", changeOrigin: false }, "/api": { target: newApiUrl, changeOrigin: false } } },
+        preview: { proxy: { "/inkos-api": { target: process.env.STORY_URL || "http://127.0.0.1:3002", changeOrigin: false }, "/api": { target: newApiUrl, changeOrigin: false } } },
     };
 });

@@ -6,14 +6,17 @@ COPY web/package.json web/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --cache-dir=/root/.bun/install/cache
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
+COPY shared /app/shared
+COPY story-service/vendor/core /app/story-service/vendor/core
 COPY web ./
 RUN bun run build
 
-# 运行镜像：只启动静态前端，AI 请求由浏览器前台直连用户自己的接口。
+# 运行镜像：静态前端和同源 API 反向代理。
 FROM nginx:1.27-alpine
 
 COPY --from=web-build /app/web/dist /usr/share/nginx/html
 ENV NEW_API_URL=http://host.docker.internal:3000
+ENV STORY_URL=http://host.docker.internal:3002
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY web/docker-entrypoint.sh /docker-entrypoint.d/40-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh

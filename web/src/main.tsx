@@ -4,6 +4,8 @@ import { useUserStore } from "@/stores/use-user-store";
 
 // Persisted stores must not hydrate before the refresh cookie identifies the user.
 async function bootstrap() {
+    // Only React and styles preload here; account stores are imported after identity is bound.
+    const app = import("./app");
     await restoreSession().catch(() => undefined);
     const owner = useUserStore.getState().user?.id ?? null;
     initializeAccountStorage(owner);
@@ -20,8 +22,8 @@ async function bootstrap() {
     window.addEventListener("pagehide", () => {
         void flushAccountStorage();
     });
-    const { prepareApp, mountApp } = await import("./app");
-    await prepareApp();
+    const { prepareApp } = await app;
+    const mountApp = await prepareApp();
     if (!switching) unmount = mountApp();
 }
 

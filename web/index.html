@@ -2,6 +2,7 @@
 <html lang="zh-CN" class="font-sans">
     <head>
         <meta charset="UTF-8" />
+        <meta name="referrer" content="no-referrer" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="description" content="DmxVideo 创作工作台，在无限画布中连接图片、视频与灵感。" />
         <link rel="icon" type="image/png" href="/dmxvideo-logo.png" />
@@ -16,7 +17,7 @@
         </script>
     </head>
     <body class="bg-background text-foreground antialiased">
-        <div id="root"></div>
+        <div id="root"><div role="status" style="display:flex;min-height:100dvh;align-items:center;justify-content:center;font:14px system-ui;color:inherit">正在加载工作台…</div></div>
         <script src="/config.js"></script>
         <script type="module" src="/src/main.tsx"></script>
     </body>

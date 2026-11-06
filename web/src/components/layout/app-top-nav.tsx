@@ -4,18 +4,25 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
-import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useConfigStore } from "@/stores/use-config-store";
 import { useAgentStore } from "@/stores/use-agent-store";
+
+const AppConfigModal = lazy(() => import("@/components/layout/app-config-modal").then((module) => ({ default: module.AppConfigModal })));
 
 export function AppTopNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const autoConnectRef = useRef(false);
+    const configOpen = useConfigStore((state) => state.isConfigOpen);
+    const [configLoaded, setConfigLoaded] = useState(configOpen);
+    useEffect(() => {
+        if (configOpen) setConfigLoaded(true);
+    }, [configOpen]);
     const agentToken = useAgentStore((state) => state.token);
     const agentEnabled = useAgentStore((state) => state.enabled);
     const agentConnected = useAgentStore((state) => state.connected);
@@ -38,7 +45,11 @@ export function AppTopNav() {
                 <header className="sticky top-0 z-20 h-[76px] shrink-0 border-b border-border bg-background/95 backdrop-blur-xl">
                     <div className="mx-auto flex h-full max-w-[1240px] items-stretch justify-between gap-3 px-5 sm:px-8">
                         <div className="flex min-w-0 items-center">
-                            <Link to="/" aria-label="DmxVideo" className="flex h-full shrink-0 items-center gap-3 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
+                            <Link
+                                to="/"
+                                aria-label="DmxVideo"
+                                className="flex h-full shrink-0 items-center gap-3 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300"
+                            >
                                 <img src="/dmxvideo-logo.png" alt="" width={40} height={40} className="size-9 shrink-0 rounded-[10px] sm:size-10" />
                                 <span className="hidden text-[23px] font-semibold tracking-[-0.05em] min-[380px]:block">DmxVideo</span>
                             </Link>
@@ -62,9 +73,7 @@ export function AppTopNav() {
                                             to={`/${tool.slug}`}
                                             className={cn(
                                                 "relative flex h-full shrink-0 items-center gap-2 text-[13px] leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-[2px]",
-                                                active
-                                                    ? "font-medium text-stone-950 after:bg-[var(--brand-green)] dark:text-stone-100"
-                                                    : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
+                                                active ? "font-medium text-stone-950 after:bg-[var(--brand-green)] dark:text-stone-100" : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
                                             )}
                                         >
                                             <span className="truncate">{t(`navigation.${tool.slug}`)}</span>
@@ -85,7 +94,11 @@ export function AppTopNav() {
             ) : null}
 
             <MobileNavDrawer open={mobileNavOpen} activeToolSlug={activeToolSlug} onClose={() => setMobileNavOpen(false)} />
-            <AppConfigModal />
+            {(configOpen || configLoaded) && (
+                <Suspense fallback={null}>
+                    <AppConfigModal />
+                </Suspense>
+            )}
         </>
     );
 }

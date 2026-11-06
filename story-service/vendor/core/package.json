@@ -1,0 +1,73 @@
+{
+  "name": "@actalk/inkos-core",
+  "version": "2.0.0",
+  "description": "InkOS pi-agent production harness for story creation, governed context, retrieval, review, and interactive worlds",
+  "keywords": [
+    "story-creation-ai-agent",
+    "story-agent",
+    "ai-novel-writing",
+    "ai-writing-agent",
+    "novel-generator",
+    "interactive-fiction",
+    "ip-content",
+    "continuity-audit",
+    "style-cloning",
+    "ai-fiction",
+    "creative-writing-ai",
+    "llm-agent",
+    "zod-validation"
+  ],
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./llm/api-format": {
+      "types": "./src/llm/api-format.ts",
+      "import": "./src/llm/api-format.ts"
+    },
+    "./interactive-film/evaluator": {
+      "types": "./src/interactive-film/evaluator.ts",
+      "import": "./src/interactive-film/evaluator.ts"
+    },
+    "./interactive-film/graph-schema": {
+      "types": "./src/interactive-film/graph-schema.ts",
+      "import": "./src/interactive-film/graph-schema.ts"
+    },
+    "./forecast/schema": {
+      "types": "./src/forecast/schema.ts",
+      "import": "./src/forecast/schema.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/__tests__",
+    "skills"
+  ],
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Narcooo/inkos.git",
+    "directory": "packages/core"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@mariozechner/pi-agent-core": "0.67.1",
+    "@mariozechner/pi-ai": "0.67.1",
+    "@sinclair/typebox": "^0.34.49",
+    "dotenv": "^16.4.0",
+    "epub-gen-memory": "^1.0.10",
+    "jszip": "3.10.1",
+    "js-yaml": "^4.1.1",
+    "undici": "6.21.3",
+    "unpdf": "^1.6.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=22.16.0"
+  }
+}

@@ -1,3 +1,4 @@
+import type { StoryProductionLink } from "./story-production";
 export type Position = {
     x: number;
     y: number;
@@ -45,6 +46,7 @@ export type CanvasNodeText = {
 };
 
 export type CanvasNodeMetadata = {
+    storySource?: StoryProductionLink;
     content?: string;
     composerContent?: string;
     prompt?: string;

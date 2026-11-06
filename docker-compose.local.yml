@@ -8,7 +8,21 @@ services:
       - "3001:3000"
     environment:
       NEW_API_URL: ${NEW_API_URL:-http://host.docker.internal:3000}
-      NEW_API_CONSOLE_URL: ${NEW_API_CONSOLE_URL:-http://localhost:3000}
+      STORY_URL: http://stories:3002
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  stories:
+    build:
+      context: .
+      dockerfile: story-service/Dockerfile
+    environment:
+      STORY_DATABASE_URL: ${STORY_DATABASE_URL:?Set this to the PostgreSQL SQL_DSN used by New API}
+      NEW_API_URL: ${NEW_API_URL:-http://host.docker.internal:3000}
+      STORY_PUBLIC_ORIGINS: ${STORY_PUBLIC_ORIGINS:-http://127.0.0.1:3001,http://localhost:3001}
+    volumes:
+      - ./data/stories:/data/stories
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

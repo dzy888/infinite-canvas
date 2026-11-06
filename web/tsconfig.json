@@ -1,7 +1,11 @@
 {
     "compilerOptions": {
         "target": "ES2018",
-        "lib": ["dom", "dom.iterable", "esnext"],
+        "lib": [
+            "dom",
+            "dom.iterable",
+            "esnext"
+        ],
         "allowJs": true,
         "skipLibCheck": true,
         "strict": true,
@@ -14,9 +18,23 @@
         "jsx": "react-jsx",
         "incremental": true,
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": [
+                "./src/*"
+            ],
+            "@actalk/inkos-core": [
+                "../story-service/vendor/core/src/index.ts"
+            ],
+            "@actalk/inkos-core/*": [
+                "../story-service/vendor/core/src/*"
+            ]
         }
     },
-    "include": ["vite.config.ts", "src/**/*.ts", "src/**/*.tsx"],
-    "exclude": ["node_modules"]
+    "include": [
+        "vite.config.ts",
+        "src/**/*.ts",
+        "src/**/*.tsx"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }

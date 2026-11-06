@@ -1,5 +1,5 @@
 import axios from "axios";
-import { modelRequestHeaders, preparePlatformRequest } from "./new-api-platform";
+import { modelRequestHeaders, preparePlatformRequest, refreshPlatformAccount } from "./new-api-platform";
 
 import i18n from "@/i18n";
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
@@ -22,49 +22,53 @@ function aiHeaders(config: AiConfig) {
 }
 
 export async function requestAudioGeneration(config: AiConfig, prompt: string, options?: RequestOptions): Promise<Blob> {
-    await preparePlatformRequest(config);
-    const requestConfig = resolveModelRequestConfig(config, config.model || config.audioModel);
-    const model = requestConfig.model.trim();
-    const format = normalizeAudioFormatValue(config.audioFormat);
-    const script = resolveModelScript(config, config.model || config.audioModel);
-    if (script) {
-        if (!model) throw new Error(apiText("audioModelRequired"));
-        if (!requestConfig.baseUrl.trim()) throw new Error(apiText("baseUrlRequired"));
-        if (!requestConfig.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
+    try {
+        await preparePlatformRequest(config);
+        const requestConfig = resolveModelRequestConfig(config, config.model || config.audioModel);
+        const model = requestConfig.model.trim();
+        const format = normalizeAudioFormatValue(config.audioFormat);
+        const script = resolveModelScript(config, config.model || config.audioModel);
+        if (script) {
+            if (!model) throw new Error(apiText("audioModelRequired"));
+            if (!requestConfig.baseUrl.trim()) throw new Error(apiText("baseUrlRequired"));
+            if (!requestConfig.apiKey.trim()) throw new Error(apiText("apiKeyRequired"));
+            try {
+                const result = await runModelPlugin({
+                    capability: "audio",
+                    script,
+                    config: requestConfig,
+                    prompt,
+                    params: { voice: normalizeAudioVoiceValue(config.audioVoice), format, speed: normalizeAudioSpeedValue(config.audioSpeed), instructions: config.audioInstructions.trim() },
+                    signal: options?.signal,
+                });
+                return await audioPluginBlob(result, format);
+            } catch (error) {
+                throw new Error(readAxiosError(error, apiText("audioGenerationFailed")));
+            }
+        }
+        assertAudioConfig(requestConfig, model);
+        const instructions = config.audioInstructions.trim();
+
         try {
-            const result = await runModelPlugin({
-                capability: "audio",
-                script,
-                config: requestConfig,
-                prompt,
-                params: { voice: normalizeAudioVoiceValue(config.audioVoice), format, speed: normalizeAudioSpeedValue(config.audioSpeed), instructions: config.audioInstructions.trim() },
-                signal: options?.signal,
-            });
-            return await audioPluginBlob(result, format);
+            const response = await axios.post<Blob>(
+                aiApiUrl(requestConfig, "/audio/speech"),
+                {
+                    model,
+                    input: prompt,
+                    voice: normalizeAudioVoiceValue(config.audioVoice),
+                    response_format: format,
+                    speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
+                    ...(instructions ? { instructions } : {}),
+                },
+                { headers: aiHeaders(requestConfig), responseType: "blob", signal: options?.signal },
+            );
+            await assertAudioBlob(response.data);
+            return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
         } catch (error) {
             throw new Error(readAxiosError(error, apiText("audioGenerationFailed")));
         }
-    }
-    assertAudioConfig(requestConfig, model);
-    const instructions = config.audioInstructions.trim();
-
-    try {
-        const response = await axios.post<Blob>(
-            aiApiUrl(requestConfig, "/audio/speech"),
-            {
-                model,
-                input: prompt,
-                voice: normalizeAudioVoiceValue(config.audioVoice),
-                response_format: format,
-                speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
-                ...(instructions ? { instructions } : {}),
-            },
-            { headers: aiHeaders(requestConfig), responseType: "blob", signal: options?.signal },
-        );
-        await assertAudioBlob(response.data);
-        return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
-    } catch (error) {
-        throw new Error(readAxiosError(error, apiText("audioGenerationFailed")));
+    } finally {
+        void refreshPlatformAccount(config);
     }
 }
 

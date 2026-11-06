@@ -18,10 +18,12 @@ const store = createAccountStorage("image_files");
 const previewStore = createAccountStorage("image_previews");
 const imageLogStore = createAccountStorage("image_generation_logs");
 const videoLogStore = createAccountStorage("video_generation_logs");
+const productionStore = createAccountStorage("story_production");
 const objectUrls = new Map<string, string>();
 const previewUrls = new Map<string, string>();
 const previewListeners = new Set<() => void>();
 let previewRevision = 0;
+let previewCacheVersion = 0;
 let previewQueue: Promise<unknown> = Promise.resolve();
 const IMAGE_PREVIEW_VERSION = 1;
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
@@ -172,11 +174,22 @@ export function getImagePreviewRevision() {
     return previewRevision;
 }
 
+export async function clearImagePreviewCache() {
+    previewCacheVersion += 1;
+    await previewStore.clear();
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    previewUrls.clear();
+    previewRevision += 1;
+    previewListeners.forEach((listener) => listener());
+}
+
 export async function ensureImagePreview(storageKey?: string) {
     if (!storageKey) return undefined;
     const cached = previewUrls.get(storageKey);
     if (cached) return cached;
+    const version = previewCacheVersion;
     const stored = await previewStore.getItem<StoredImagePreview>(storageKey).catch(() => null);
+    if (version !== previewCacheVersion) return undefined;
     if (stored?.version === IMAGE_PREVIEW_VERSION) return stored.blob ? cacheImagePreview(storageKey, stored.blob) : undefined;
     queueImagePreview(storageKey);
     return undefined;
@@ -184,18 +197,22 @@ export async function ensureImagePreview(storageKey?: string) {
 
 // 缩略图生成排成一队，避免一次打开大量图片时同时解码。
 function queueImagePreview(storageKey: string) {
+    const version = previewCacheVersion;
     previewQueue = previewQueue
         .then(async () => {
+            if (version !== previewCacheVersion) return;
             const original = await getImageBlob(storageKey);
-            if (original) await storeImagePreview(storageKey, original);
+            if (original && version === previewCacheVersion) await storeImagePreview(storageKey, original);
         })
         .catch(() => undefined);
 }
 
 async function storeImagePreview(storageKey: string, original: Blob) {
+    const version = previewCacheVersion;
     const preview = await createImageThumbnail(original).catch(() => undefined);
+    if (version !== previewCacheVersion) return undefined;
     await previewStore.setItem<StoredImagePreview>(storageKey, { version: IMAGE_PREVIEW_VERSION, blob: preview }).catch(() => undefined);
-    return preview ? cacheImagePreview(storageKey, preview) : undefined;
+    return version === previewCacheVersion && preview ? cacheImagePreview(storageKey, preview) : undefined;
 }
 
 function cacheImagePreview(storageKey: string, preview: Blob) {
@@ -250,6 +267,9 @@ export async function cleanupUnusedImages(usedData: unknown) {
             collectImageStorageKeys(value, usedKeys);
         }),
     ]);
+    await productionStore.iterate((value) => {
+        try { collectImageStorageKeys(typeof value === "string" ? JSON.parse(value) : value, usedKeys); } catch { /* Keep normal media cleanup independent of an unreadable draft. */ }
+    });
     const unused: string[] = [];
     await store.iterate((_value, key) => {
         if (!usedKeys.has(key)) unused.push(key);

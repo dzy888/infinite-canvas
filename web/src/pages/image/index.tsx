@@ -21,6 +21,9 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 import type { ReferenceImage } from "@/types/image";
 import i18n from "@/i18n";
+import { ProductionWorkbench } from "@/features/stories/production-workbench";
+import type { StoryProductionLink } from "@/types/story-production";
+import { rememberProductionImage } from "@/services/story-production-results";
 
 type GeneratedImage = {
     id: string;
@@ -49,6 +52,7 @@ type GenerationLog = {
     model: string;
     config: GenerationLogConfig;
     references: ReferenceImage[];
+    storySource?: StoryProductionLink;
     durationMs: number;
     successCount: number;
     failCount: number;
@@ -80,6 +84,7 @@ export default function ImagePage() {
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const addAsset = useAssetStore((state) => state.addAsset);
     const [prompt, setPrompt] = useState("");
+    const [storySource, setStorySource] = useState<StoryProductionLink>();
     const [references, setReferences] = useState<ReferenceImage[]>([]);
     const [results, setResults] = useState<GenerationResult[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
@@ -194,6 +199,7 @@ export default function ImagePage() {
                     model,
                     config: { ...snapshot.config, count: String(generationCount) },
                     references: snapshot.references,
+                    storySource: snapshot.storySource,
                     durationMs: performance.now() - batchStartedAt,
                     successCount,
                     failCount,
@@ -212,10 +218,16 @@ export default function ImagePage() {
         if (!imageCommand || imageCommand.nonce === processedCommandRef.current) return;
         processedCommandRef.current = imageCommand.nonce;
         clearImageCommand();
-        if (typeof imageCommand.prompt === "string") setPrompt(imageCommand.prompt);
-        if (imageCommand.run && running) {
+        if (running) {
             if (imageCommand.taskId) updateAgentTask(imageCommand.taskId, { status: "failed", error: t("imageWorkbench.busy") });
             return;
+        }
+        if (typeof imageCommand.prompt === "string") setPrompt(imageCommand.prompt);
+        if (imageCommand.references) setReferences(imageCommand.references);
+        setStorySource(imageCommand.storySource);
+        if (imageCommand.storySource) {
+            setResults([]);
+            setPreviewLog(null);
         }
         if (imageCommand.run) {
             agentTaskIdRef.current = imageCommand.taskId;
@@ -240,6 +252,10 @@ export default function ImagePage() {
     };
 
     const saveResultToAssets = async (image: GeneratedImage, index: number) => {
+        if (useAssetStore.getState().assets.some((asset) => asset.metadata?.generationId === image.id)) {
+            message.success(t("common.addedToAssets"));
+            return;
+        }
         const stored = await uploadImage(image.dataUrl);
         addAsset({
             kind: "image",
@@ -267,6 +283,7 @@ export default function ImagePage() {
 
     const createSession = () => {
         setPrompt("");
+        setStorySource(undefined);
         setReferences([]);
         setResults([]);
         setElapsedMs(0);
@@ -277,7 +294,13 @@ export default function ImagePage() {
 
     const deleteSelectedLogs = () => {
         const imageKeys = logs.filter((log) => selectedLogIds.includes(log.id)).flatMap((log) => log.images.map((image) => image.storageKey).filter((key): key is string => Boolean(key)));
-        void Promise.all([deleteStoredImages(imageKeys), ...selectedLogIds.map((id) => logStore.removeItem(id))]).then(refreshLogs);
+        const retained = new Set(
+            useAssetStore
+                .getState()
+                .assets.filter((asset) => asset.kind === "image")
+                .map((asset) => asset.data.storageKey),
+        );
+        void Promise.all([deleteStoredImages(imageKeys.filter((key) => !retained.has(key))), ...selectedLogIds.map((id) => logStore.removeItem(id))]).then(refreshLogs);
         if (previewLog && selectedLogIds.includes(previewLog.id)) {
             setPreviewLog(null);
             setResults([]);
@@ -296,6 +319,7 @@ export default function ImagePage() {
         setPreviewLog(log);
         setLogsOpen(false);
         setPrompt(log.prompt);
+        setStorySource(log.storySource);
         setReferences(log.references || []);
         if (log.config.imageModel || log.model) updateConfig("imageModel", log.config.imageModel || log.model);
         if (log.config.quality) updateConfig("quality", log.config.quality);
@@ -315,17 +339,27 @@ export default function ImagePage() {
             openConfigDialog(true);
             return null;
         }
-        return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references] };
+        return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references], storySource };
     };
 
-    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[] }) => {
+    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[]; storySource?: StoryProductionLink }) => {
         const itemStartedAt = performance.now();
         try {
             const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references) : await requestGeneration(snapshot.config, snapshot.text);
             const image = result[0];
             if (!image) throw new Error(t("imageWorkbench.missingResult"));
             const stored = await uploadImage(image.dataUrl);
-            const nextImage: GeneratedImage = { id: image.id, dataUrl: stored.url, ...(stored.storageKey ? { storageKey: stored.storageKey } : {}), durationMs: performance.now() - itemStartedAt, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
+            const nextImage: GeneratedImage = {
+                id: image.id,
+                dataUrl: stored.url,
+                ...(stored.storageKey ? { storageKey: stored.storageKey } : {}),
+                durationMs: performance.now() - itemStartedAt,
+                width: stored.width,
+                height: stored.height,
+                bytes: stored.bytes,
+                mimeType: stored.mimeType,
+            };
+            await rememberProductionImage(snapshot.storySource, nextImage, snapshot.text);
             setResults((value) => updateResultAt(value, index, { status: "success", image: nextImage }));
             return nextImage;
         } catch (error) {
@@ -348,6 +382,7 @@ export default function ImagePage() {
                     model,
                     config: { ...snapshot.config, count: "1" },
                     references: snapshot.references,
+                    storySource: snapshot.storySource,
                     durationMs: performance.now() - retryStartedAt,
                     successCount: 1,
                     failCount: 0,
@@ -393,6 +428,8 @@ export default function ImagePage() {
                                 </div>
                             </div>
                         </div>
+
+                        <ProductionWorkbench kind="image" source={storySource} running={running} onClear={() => setStorySource(undefined)} />
 
                         <div className="mt-6 space-y-5">
                             <div>
@@ -806,6 +843,7 @@ async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog>
         model: log.model || config.imageModel || "",
         config,
         references,
+        storySource: log.storySource,
         durationMs: log.durationMs || 0,
         successCount: log.successCount ?? log.imageCount ?? 0,
         failCount: log.failCount || 0,
@@ -863,6 +901,7 @@ function buildLog({
     failCount,
     status,
     images,
+    storySource,
 }: {
     prompt: string;
     model: string;
@@ -873,6 +912,7 @@ function buildLog({
     failCount: number;
     status: GenerationLog["status"];
     images: GeneratedImage[];
+    storySource?: StoryProductionLink;
 }): GenerationLog {
     const logConfig = {
         model: config.model,
@@ -890,6 +930,7 @@ function buildLog({
         model,
         config: logConfig,
         references,
+        storySource,
         durationMs,
         successCount,
         failCount,

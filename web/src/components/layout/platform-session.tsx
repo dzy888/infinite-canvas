@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Alert, Button } from "antd";
 import { useTranslation } from "react-i18next";
 import { useUserStore } from "@/stores/use-user-store";
+import { restoreSession } from "@/services/api/new-api-auth";
 import { usePlatformStore } from "@/stores/use-platform-store";
 
 export function PlatformSession() {
@@ -25,6 +26,8 @@ export function PlatformStatus() {
     const { t } = useTranslation();
     const owner = useUserStore((state) => state.user?.id);
     const { error, loading } = usePlatformStore();
+    const phase = useUserStore((state) => state.phase);
+    if (owner && phase === "error") return <Alert className="!rounded-none" type="warning" showIcon title={t("auth.unavailable")} action={<Button size="small" onClick={() => void restoreSession(true).catch(() => undefined)}>{t("auth.retry")}</Button>} />;
     if (!owner || !error) return null;
     return (
         <Alert

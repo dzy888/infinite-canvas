@@ -1,10 +1,10 @@
-import { Alert, Button, Progress, Spin } from "antd";
+import { Alert, App, Button, Popconfirm, Progress, Spin } from "antd";
 import type { TFunction } from "i18next";
-import { Database, HardDrive, Layers3, RefreshCw } from "lucide-react";
+import { Database, HardDrive, Layers3, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { readLocalStorageUsage, type LocalStorageUsage } from "@/services/local-storage-usage";
+import { clearLocalStorageCaches, readLocalStorageUsage, type LocalStorageUsage } from "@/services/local-storage-usage";
 
 const storeLabelKeys: Record<string, string> = {
     app_state: "appState",
@@ -19,8 +19,10 @@ const storeLabelKeys: Record<string, string> = {
 
 export function ConfigLocalStorage({ active }: { active: boolean }) {
     const { t } = useTranslation();
+    const { message } = App.useApp();
     const [usage, setUsage] = useState<LocalStorageUsage | null>(null);
     const [loading, setLoading] = useState(false);
+    const [clearing, setClearing] = useState(false);
     const [error, setError] = useState("");
 
     const refresh = useCallback(async () => {
@@ -39,6 +41,20 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
         if (active && !usage) void refresh();
     }, [active, refresh, usage]);
 
+    const clearCaches = async () => {
+        setClearing(true);
+        setError("");
+        try {
+            await clearLocalStorageCaches();
+            message.success(t("config.localStorage.cleared"));
+        } catch {
+            message.error(t("config.localStorage.clearFailed"));
+        } finally {
+            await refresh();
+            setClearing(false);
+        }
+    };
+    const hasCaches = usage?.databases.some((database) => database.stores.some((store) => ["image_previews", "prompt_cache"].includes(store.name) && store.records > 0));
     const indexedDbBytes = usage?.contentBytes ?? 0;
     const percent = usage?.quota ? Math.min(100, (usage.usage / usage.quota) * 100) : 0;
 
@@ -53,19 +69,41 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
                         </div>
                         <div className="mt-1 text-xs text-stone-500">{t("config.localStorage.description")}</div>
                     </div>
-                    <Button icon={<RefreshCw className="size-4" />} loading={loading} onClick={() => void refresh()}>
-                        {t("config.localStorage.refresh")}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Popconfirm
+                            title={t("config.localStorage.clearTitle")}
+                            description={t("config.localStorage.clearDescription")}
+                            okText={t("config.localStorage.clear")}
+                            cancelText={t("common.cancel")}
+                            onConfirm={clearCaches}
+                            disabled={loading || clearing || !hasCaches}
+                        >
+                            <Button icon={<Trash2 className="size-4" />} loading={clearing} disabled={loading || !hasCaches}>
+                                {t("config.localStorage.clear")}
+                            </Button>
+                        </Popconfirm>
+                        <Button icon={<RefreshCw className="size-4" />} loading={loading} disabled={clearing} onClick={() => void refresh()}>
+                            {t("config.localStorage.refresh")}
+                        </Button>
+                    </div>
                 </div>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">{t("config.localStorage.cacheHint")}</p>
                 {error ? <Alert className="mt-4" type="error" showIcon message={t("config.localStorage.readFailed")} description={error} /> : null}
                 {!usage && loading ? (
-                    <div className="flex min-h-48 items-center justify-center"><Spin /></div>
+                    <div className="flex min-h-48 items-center justify-center">
+                        <Spin />
+                    </div>
                 ) : usage ? (
                     <>
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                             <StorageMetric icon={<Database className="size-4" />} label={t("config.localStorage.indexedDbUsage")} value={formatStorageBytes(indexedDbBytes)} hint={t("config.localStorage.contentEstimate")} />
                             <StorageMetric icon={<HardDrive className="size-4" />} label={t("config.localStorage.siteUsage")} value={formatStorageBytes(usage.usage)} hint={t("config.localStorage.siteUsageHint")} />
-                            <StorageMetric icon={<Layers3 className="size-4" />} label={t("config.localStorage.quota")} value={formatStorageBytes(usage.quota)} hint={usage.quota ? t("config.localStorage.quotaHint") : t("config.localStorage.quotaUnavailable")} />
+                            <StorageMetric
+                                icon={<Layers3 className="size-4" />}
+                                label={t("config.localStorage.quota")}
+                                value={formatStorageBytes(usage.quota)}
+                                hint={usage.quota ? t("config.localStorage.quotaHint") : t("config.localStorage.quotaUnavailable")}
+                            />
                         </div>
                         {usage.quota ? (
                             <div className="mt-4">
@@ -84,7 +122,9 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
                     <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
                         <div className="min-w-0">
                             <div className="truncate text-sm font-semibold">{t("config.localStorage.mainDatabase")}</div>
-                            <div className="mt-0.5 truncate font-mono text-[11px] text-stone-500">{database.name} · v{database.version}</div>
+                            <div className="mt-0.5 truncate font-mono text-[11px] text-stone-500">
+                                {database.name} · v{database.version}
+                            </div>
                         </div>
                         <div className="shrink-0 text-sm font-medium tabular-nums">{formatStorageBytes(database.bytes)}</div>
                     </div>
@@ -109,7 +149,10 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
 function StorageMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint: string }) {
     return (
         <div className="rounded-lg bg-stone-100/70 p-3 dark:bg-stone-900/70">
-            <div className="flex items-center gap-2 text-xs text-stone-500">{icon}{label}</div>
+            <div className="flex items-center gap-2 text-xs text-stone-500">
+                {icon}
+                {label}
+            </div>
             <div className="mt-2 text-xl font-semibold tabular-nums">{value}</div>
             <div className="mt-1 text-[11px] text-stone-500">{hint}</div>
         </div>

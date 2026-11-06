@@ -107,3 +107,79 @@ test("existing pricing data selects authorized groups and effective multipliers"
         ],
     );
 });
+
+test("wallet mutations reuse native endpoints, legacy success envelopes and the current session", async () => {
+    const { quotePayment, createPayment, paymentMethods, safeCheckoutUrl } = await import("./new-api-wallet");
+    const { platformRequest } = await import("./new-api-platform");
+    const calls: Array<{ path: string; method: string; body: unknown; auth: string }> = [];
+    globalThis.fetch = (async (url, init) => {
+        calls.push({ path: String(url), method: init?.method || "", body: init?.body ? JSON.parse(String(init.body)) : null, auth: new Headers(init?.headers).get("Authorization") || "" });
+        if (String(url).endsWith("/stripe/amount")) return new Response(JSON.stringify({ message: "success", data: "7.50" }));
+        if (String(url).endsWith("/stripe/pay")) return reply({ pay_link: "https://checkout.example.test/pay" });
+        return reply(500000);
+    }) as typeof fetch;
+    assert.equal(await quotePayment(10, { name: "Card", type: "stripe" }), 7.5);
+    assert.deepEqual(await createPayment(10, { name: "Card", type: "stripe" }), { url: "https://checkout.example.test/pay" });
+    await platformRequest("/user/topup", false, { method: "POST", body: { key: "test-code" } });
+    assert.deepEqual(
+        calls.map((call) => [call.path, call.method, call.body]),
+        [
+            ["/api/user/stripe/amount", "POST", { amount: 10 }],
+            ["/api/user/stripe/pay", "POST", { amount: 10, payment_method: "stripe" }],
+            ["/api/user/topup", "POST", { key: "test-code" }],
+        ],
+    );
+    assert.ok(calls.every((call) => call.auth === "Bearer session-secret-1"));
+    for (const value of ["javascript:alert(1)", "data:text/html,test", "/relative", "file:///C:/test"]) assert.throws(() => safeCheckoutUrl(value));
+    const methods = paymentMethods({
+        enable_online_topup: false,
+        enable_stripe_topup: true,
+        enable_redemption: false,
+        enable_waffo_topup: true,
+        pay_methods: [
+            { name: "Alipay", type: "alipay" },
+            { name: "Card", type: "stripe" },
+            { name: "Global", type: "waffo" },
+        ],
+        waffo_pay_methods: [{ name: "Local bank" }],
+        min_topup: 1,
+        stripe_min_topup: 5,
+        waffo_min_topup: 3,
+        amount_options: [],
+    });
+    assert.deepEqual(
+        methods.map((method) => [method.type, method.min_topup, method.pay_method_index]),
+        [
+            ["stripe", 5, undefined],
+            ["waffo", 3, 0],
+        ],
+    );
+});
+
+test("wallet errors never become a successful quote or checkout", async () => {
+    const { quotePayment, createPayment } = await import("./new-api-wallet");
+    globalThis.fetch = (async () => new Response(JSON.stringify({ success: false, message: "success", data: "10" }))) as typeof fetch;
+    await assert.rejects(quotePayment(10, { name: "Card", type: "stripe" }));
+    globalThis.fetch = (async () => reply({ pay_link: "javascript:alert(1)" })) as typeof fetch;
+    await assert.rejects(createPayment(10, { name: "Card", type: "stripe" }));
+});
+
+test("a response body arriving after an account switch is discarded", async () => {
+    const { platformRequest } = await import("./new-api-platform");
+    globalThis.fetch = (async () => {
+        const response = new Response();
+        response.json = async () => {
+            useUserStore.getState().setSession(session(2));
+            return { success: true, data: { quota: 999 } };
+        };
+        return response;
+    }) as typeof fetch;
+    await assert.rejects(platformRequest("/user/self"));
+});
+
+test("a revoked session cannot remain logged in after a management request", async () => {
+    const { platformRequest } = await import("./new-api-platform");
+    globalThis.fetch = (async () => reply(null, 401)) as typeof fetch;
+    await assert.rejects(platformRequest("/user/self"));
+    assert.equal(useUserStore.getState().phase, "anonymous");
+});

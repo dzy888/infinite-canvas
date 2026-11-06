@@ -1,0 +1,37 @@
+{
+  "name": "@dmxvideo/story-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "vendor/core",
+    "vendor/studio"
+  ],
+  "scripts": {
+    "dev": "node --import tsx src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "test": "node --import tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs",
+    "predev": "npm run build",
+    "prestart": "npm run build",
+    "pretest": "npm run build"
+  },
+  "dependencies": {
+    "@actalk/inkos-core": "2.0.0",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.7.0",
+    "pg": "^8.23.1",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=24.8.0"
+  }
+}

@@ -5,6 +5,7 @@ import { AuthError } from "@/services/api/new-api-auth";
 let version = 0;
 type PlatformStore = {
     models: PlatformModel[];
+    pricing: PricingCatalog | null;
     account: AccountInfo | null;
     quotaSettings?: QuotaSettings;
     owner: number | null;
@@ -18,6 +19,7 @@ type PlatformStore = {
 // The catalog and account snapshot are scoped to the active account and never persisted.
 export const usePlatformStore = create<PlatformStore>()((set) => ({
     models: [],
+    pricing: null,
     account: null,
     owner: null,
     loading: false,
@@ -25,18 +27,18 @@ export const usePlatformStore = create<PlatformStore>()((set) => ({
     error: "",
     reset: () => {
         version += 1;
-        set({ models: [], account: null, quotaSettings: undefined, owner: null, loading: false, loaded: false, error: "" });
+        set({ models: [], pricing: null, account: null, quotaSettings: undefined, owner: null, loading: false, loaded: false, error: "" });
     },
     load: async (owner) => {
         const current = ++version;
-        set((state) => ({ owner, loading: true, error: "", ...(state.owner !== owner ? { models: [], account: null, loaded: false } : {}) }));
+        set((state) => ({ owner, loading: true, error: "", ...(state.owner !== owner ? { models: [], pricing: null, account: null, loaded: false } : {}) }));
         try {
             const [pricing, account, quotaSettings] = await Promise.all([platformRequest<PricingCatalog>("/pricing", true), platformRequest<AccountInfo>("/user/self"), platformRequest<QuotaSettings>("/status")]);
             if (!Array.isArray(pricing.data)) throw new Error("Invalid catalog");
             const models = modelsFromPricing(pricing, account.group);
-            if (current === version) set({ models, account, quotaSettings, loading: false, loaded: true, error: "" });
+            if (current === version) set({ models, pricing, account, quotaSettings, loading: false, loaded: true, error: "" });
         } catch (error) {
-            if (current === version) set({ models: [], loading: false, loaded: true, error: error instanceof AuthError ? error.key : "platform.loadFailed" });
+            if (current === version) set({ models: [], pricing: null, loading: false, loaded: true, error: error instanceof AuthError ? error.key : "platform.loadFailed" });
         }
     },
 }));

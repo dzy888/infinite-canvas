@@ -48,6 +48,12 @@ type SourceCache = PromptSourceStatus & {
 const cacheTtlMs = 1000 * 60 * 60;
 const promptCacheStore = createAccountStorage("prompt_cache");
 const loadingSources = new Map<string, Promise<PromptSourceRefreshResult>>();
+let cacheVersion = 0;
+
+export async function clearPromptCache() {
+    cacheVersion += 1;
+    await promptCacheStore.clear();
+}
 
 function enabledSources() {
     return usePromptSourceStore.getState().sources.filter((source) => source.enabled);
@@ -80,12 +86,13 @@ async function readSourceCache(sourceId: string) {
 }
 
 async function refreshSourceRecord(source: PromptSource): Promise<PromptSourceRefreshResult> {
+    const version = cacheVersion;
     const previous = await readSourceCache(source.id);
     try {
         const items = withSourceMeta(source, await runPromptSource(source));
         const lastSuccessAt = new Date().toISOString();
         const cache: SourceCache = { sourceId: source.id, items, count: items.length, fetchedAt: Date.now(), lastSuccessAt, lastError: "", signature: sourceSignature(source) };
-        await promptCacheStore.setItem(cacheKey(source.id), cache);
+        if (version === cacheVersion) await promptCacheStore.setItem(cacheKey(source.id), cache);
         return { sourceId: source.id, sourceName: source.name, count: items.length, lastSuccessAt, lastError: "", success: true };
     } catch (error) {
         const lastError = error instanceof Error ? error.message : String(error);
@@ -98,7 +105,7 @@ async function refreshSourceRecord(source: PromptSource): Promise<PromptSourceRe
             lastError,
             signature: previous?.signature || sourceSignature(source),
         };
-        await promptCacheStore.setItem(cacheKey(source.id), cache);
+        if (version === cacheVersion) await promptCacheStore.setItem(cacheKey(source.id), cache);
         return { sourceId: source.id, sourceName: source.name, count: cache.count, lastSuccessAt: cache.lastSuccessAt, lastError, success: false };
     }
 }

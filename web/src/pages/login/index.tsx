@@ -5,7 +5,6 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
-import { NEW_API_CONSOLE_URL } from "@/constant/runtime-config";
 import { AuthError, getLoginSettings, restoreSession, safeReturnPath, signIn, signInWithPasskey, verifyLogin } from "@/services/api/new-api-auth";
 import { useUserStore } from "@/stores/use-user-store";
 import { ImageCaptcha, type ImageCaptchaHandle } from "./image-captcha";
@@ -37,7 +36,7 @@ export default function LoginPage() {
         let cancelled = false;
         setChecking(true);
         setError("");
-        void Promise.all([getLoginSettings(), restoreSession(true)])
+        void Promise.all([getLoginSettings(), restoreSession(attempt > 0)])
             .then(([next]) => {
                 if (!cancelled) setSettings(next);
             })
@@ -155,11 +154,6 @@ export default function LoginPage() {
                             ) : !settings.initialized ? (
                                 <>
                                     <Alert type="warning" showIcon title={t("auth.setupRequired")} />
-                                    {NEW_API_CONSOLE_URL ? (
-                                        <Button className="!mt-5" href={`${NEW_API_CONSOLE_URL}/setup`} target="_blank" rel="noopener noreferrer" icon={<ArrowUpRight size={16} />}>
-                                            {t("auth.openSetup")}
-                                        </Button>
-                                    ) : null}
                                     <Button className="!mt-5 !ml-3" onClick={() => setAttempt((current) => current + 1)}>
                                         {t("auth.retry")}
                                     </Button>
@@ -209,20 +203,18 @@ export default function LoginPage() {
                                                 <Checkbox checked={agreed} onChange={(event) => setAgreed(event.target.checked)}>
                                                     {t("auth.consent")}
                                                 </Checkbox>
-                                                {NEW_API_CONSOLE_URL ? (
-                                                    <span>
-                                                        {settings.user_agreement_enabled ? (
-                                                            <a href={`${NEW_API_CONSOLE_URL}/terms-of-service`} target="_blank" rel="noopener noreferrer">
-                                                                {t("auth.terms")}
-                                                            </a>
-                                                        ) : null}
-                                                        {settings.privacy_policy_enabled ? (
-                                                            <a href={`${NEW_API_CONSOLE_URL}/privacy-policy`} target="_blank" rel="noopener noreferrer">
-                                                                {t("auth.privacy")}
-                                                            </a>
-                                                        ) : null}
-                                                    </span>
-                                                ) : null}
+                                                <span>
+                                                    {settings.user_agreement_enabled ? (
+                                                        <a href="/terms-of-service" target="_blank" rel="noopener noreferrer">
+                                                            {t("auth.terms")}
+                                                        </a>
+                                                    ) : null}
+                                                    {settings.privacy_policy_enabled ? (
+                                                        <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">
+                                                            {t("auth.privacy")}
+                                                        </a>
+                                                    ) : null}
+                                                </span>
                                             </div>
                                         ) : null}
                                         {(challenge ? canVerifyCode : settings.password_login_enabled) ? (
@@ -261,13 +253,12 @@ export default function LoginPage() {
                                         </Button>
                                     ) : null}
                                     <div className={styles.links}>
-                                        {NEW_API_CONSOLE_URL ? (
-                                            <a href={`${NEW_API_CONSOLE_URL}/sign-in`} target="_blank" rel="noopener noreferrer">
-                                                {t("auth.otherMethods")}
-                                                <ArrowUpRight size={13} />
-                                            </a>
+                                        <Link to="/forgot-password">{t("auth.forgotPassword")}</Link>
+                                        {settings.register_enabled ? (
+                                            <Link to="/register" state={{ from: destination }}>
+                                                {t("auth.register")}
+                                            </Link>
                                         ) : null}
-                                        {settings.register_enabled ? <Link to="/register" state={{ from: destination }}>{t("auth.register")}</Link> : null}
                                     </div>
                                     <p className={styles.localNote}>{t("auth.localData")}</p>
                                 </>

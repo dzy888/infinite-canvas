@@ -1,4 +1,6 @@
 import { accountDatabaseName } from "@/lib/account-storage";
+import { clearImagePreviewCache } from "./image-storage";
+import { clearPromptCache } from "./api/prompts";
 
 export type IndexedDbStoreUsage = { name: string; records: number; bytes: number };
 export type IndexedDbDatabaseUsage = { name: string; version: number; bytes: number; stores: IndexedDbStoreUsage[] };
@@ -7,6 +9,13 @@ export type LocalStorageUsage = { usage: number; quota: number | null; contentBy
 export async function readLocalStorageUsage(): Promise<LocalStorageUsage> {
     const [estimate, database] = await Promise.all([readStorageEstimate(), readDatabaseUsage(accountDatabaseName())]);
     return { usage: estimate?.usage ?? database.bytes, quota: estimate?.quota ?? null, contentBytes: database.bytes, databases: [database] };
+}
+
+export async function clearLocalStorageCaches() {
+    // Only reproducible caches: originals, projects, history and settings stay intact.
+    const results = await Promise.allSettled([clearImagePreviewCache(), clearPromptCache()]);
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
 }
 
 async function readStorageEstimate() {

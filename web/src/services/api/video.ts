@@ -1,5 +1,5 @@
 import axios from "axios";
-import { modelRequestHeaders, preparePlatformRequest } from "./new-api-platform";
+import { modelRequestHeaders, preparePlatformRequest, refreshPlatformAccount } from "./new-api-platform";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
@@ -49,15 +49,19 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 }
 
 export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationResult> {
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-        if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
-        const state = await pollVideoGenerationTask(config, task, options);
-        if (state.status === "completed") return state.result;
-        if (state.status === "failed") throw videoTaskFailed(state.error);
-        if (attempt === 119) throw new Error(apiText("videoTimeout", { provider: "" }));
-        await delay(2500, options?.signal);
+    try {
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+            if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+            const state = await pollVideoGenerationTask(config, task, options);
+            if (state.status === "completed") return state.result;
+            if (state.status === "failed") throw videoTaskFailed(state.error);
+            if (attempt === 119) throw new Error(apiText("videoTimeout", { provider: "" }));
+            await delay(2500, options?.signal);
+        }
+        throw new Error(apiText("videoTimeout", { provider: "" }));
+    } finally {
+        void refreshPlatformAccount(config);
     }
-    throw new Error(apiText("videoTimeout", { provider: "" }));
 }
 
 export function isVideoTaskFailed(error: unknown) {
@@ -71,14 +75,18 @@ function videoTaskFailed(message: string) {
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
-    await preparePlatformRequest(config);
-    const selectedModel = (config.model || config.videoModel).trim();
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    const script = resolveModelScript(config, selectedModel);
-    if (script) return createPluginVideoTask(requestConfig, selectedModel, script, prompt, references, options);
-    assertVideoConfig(requestConfig, requestConfig.model);
-    if (requestConfig.apiFormat === "gemini") return createGeminiVideoTask(requestConfig, selectedModel, prompt, references, options);
-    return createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, options);
+    try {
+        await preparePlatformRequest(config);
+        const selectedModel = (config.model || config.videoModel).trim();
+        const requestConfig = resolveModelRequestConfig(config, selectedModel);
+        const script = resolveModelScript(config, selectedModel);
+        if (script) return await createPluginVideoTask(requestConfig, selectedModel, script, prompt, references, options);
+        assertVideoConfig(requestConfig, requestConfig.model);
+        if (requestConfig.apiFormat === "gemini") return await createGeminiVideoTask(requestConfig, selectedModel, prompt, references, options);
+        return await createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, options);
+    } finally {
+        void refreshPlatformAccount(config);
+    }
 }
 
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
@@ -89,8 +97,9 @@ export async function pollVideoGenerationTask(config: AiConfig, task: VideoGener
     }
     const requestConfig = config.platformManaged ? { ...config, baseUrl: "/api/canvas/relay", apiKey: "", model: modelOptionName(task.model), apiFormat: "openai" as const } : resolveModelRequestConfig(config, task.model);
     assertVideoConfig(requestConfig, requestConfig.model);
-    if (task.provider === "gemini") return pollGeminiVideoTask(requestConfig, task, options);
-    return pollOpenAIVideoTask(requestConfig, task, options);
+    const state = task.provider === "gemini" ? await pollGeminiVideoTask(requestConfig, task, options) : await pollOpenAIVideoTask(requestConfig, task, options);
+    if (state.status !== "pending") void refreshPlatformAccount(config);
+    return state;
 }
 
 async function createPluginVideoTask(config: AiConfig, model: string, script: string, prompt: string, references: ReferenceImage[], options?: VideoMediaOptions): Promise<VideoGenerationTask> {

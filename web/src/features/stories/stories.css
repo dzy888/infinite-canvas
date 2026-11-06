@@ -1,0 +1,31 @@
+.story-workbench {
+    --font-serif: var(--font-sans);
+    --destructive-foreground: #fff;
+}
+.story-workbench .font-serif {
+    font-family: var(--font-sans);
+    font-style: normal;
+}
+.story-workbench main {
+    min-height: 0;
+}
+.story-workbench .fade-in {
+    animation: story-appear 0.18s ease-out;
+}
+@keyframes story-appear {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .story-workbench .fade-in {
+        animation: none;
+    }
+}
+
+.story-workbench .text-primary-foreground {
+    color: var(--primary-foreground);
+}

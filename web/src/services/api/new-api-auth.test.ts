@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { AuthError, clearAuthentication, restoreSession, safeReturnPath, registerAccount, sendRegistrationCode, signIn as authenticate, signOut, verifyLogin } from "./new-api-auth";
+import { AuthError, clearAuthentication, completePasswordReset, sendPasswordReset, restoreSession, safeReturnPath, registerAccount, sendRegistrationCode, signIn as authenticate, signOut, verifyLogin } from "./new-api-auth";
 import { useUserStore } from "@/stores/use-user-store";
 import type { AuthBundle, LoginChallenge, LoginSettings } from "@/types/auth";
 
@@ -292,4 +292,86 @@ test("registration and email failures are generic and rate limits remain visible
 test("authentication routes are never accepted as login return destinations", () => {
     assert.equal(safeReturnPath("/register?next=/canvas"), "/canvas");
     assert.equal(safeReturnPath("/login"), "/canvas");
+    assert.equal(safeReturnPath("/forgot-password"), "/canvas");
+    assert.equal(safeReturnPath("/user/reset?token=secret"), "/canvas");
+});
+
+test("password recovery reuses native endpoints without exposing account existence or persisting credentials", async () => {
+    serve(() => response({ success: true }));
+    await sendPasswordReset(" alice+canvas@example.com ", { ...settings, turnstile_check: true }, "test-proof");
+    const call = requests[0];
+    assert.equal(new URL(call.url, "https://canvas.test").searchParams.get("email"), "alice+canvas@example.com");
+    assert.ok(!call.url.includes("test-proof"));
+    assert.equal((call.options?.headers as Record<string, string>)["X-Turnstile-Token"], "test-proof");
+    serve(() => response({ success: true, data: "generated-test-password" }));
+    assert.equal(await completePasswordReset("alice@example.com", "single-use-reset-token"), "generated-test-password");
+    const reset = requests.at(-1)!;
+    assert.equal(reset.url, "/api/user/reset");
+    assert.equal(reset.options?.method, "POST");
+    assert.deepEqual(JSON.parse(String(reset.options?.body)), { email: "alice@example.com", token: "single-use-reset-token" });
+    assert.equal(useUserStore.getState().session, null);
+    assert.ok(notifications.every((value) => !JSON.stringify(value).includes("generated-test-password")));
+});
+
+test("recovery failures and late reset responses cannot clear a newer login", async () => {
+    assert.throws(
+        () => sendPasswordReset("alice@example.com", { ...settings, turnstile_check: true }, ""),
+        (error: unknown) => error instanceof AuthError && error.key === "auth.captchaFailed",
+    );
+    serve(() => response({ success: false, message: "private reset details" }));
+    await assert.rejects(completePasswordReset("alice@example.com", "expired"), (error: unknown) => error instanceof AuthError && error.key === "auth.resetExpired");
+    serve(() => {
+        clearAuthentication();
+        useUserStore.getState().setSession(bundle("session-b", "bob"));
+        return response({ success: true, data: "discarded-test-password" });
+    });
+    await assert.rejects(completePasswordReset("alice@example.com", "old-link"), (error: unknown) => error instanceof AuthError && error.key === "auth.sessionChanged");
+    assert.equal(useUserStore.getState().user?.username, "bob");
+});
+
+
+test("background renewal preserves the authenticated identity while the request is pending", async () => {
+    const current=bundle();
+    useUserStore.getState().setSession(current);
+    let release!: (value:Response)=>void;
+    serve(()=>new Promise<Response>(resolve=>{release=resolve;}));
+    const pending=restoreSession(true);
+    assert.equal(useUserStore.getState().phase,"authenticated");
+    assert.equal(useUserStore.getState().session,current);
+    release(response({success:true,data:bundle()}));
+    await pending;
+    assert.equal(useUserStore.getState().user?.id,1);
+});
+
+test("a temporary renewal failure retains the editor identity and a later retry recovers", async () => {
+    const current={...bundle(),access_expires_at:1};
+    useUserStore.getState().setSession(current);
+    serve(()=>response({success:false},503));
+    await assert.rejects(restoreSession(true));
+    assert.equal(useUserStore.getState().phase,"error");
+    assert.equal(useUserStore.getState().session,current);
+    serve(()=>response({success:true,data:bundle()}));
+    await restoreSession(true);
+    assert.equal(useUserStore.getState().phase,"authenticated");
+});
+
+
+test("requests await an in-progress renewal even while the previous token remains valid", async()=>{
+    useUserStore.getState().setSession(bundle());
+    let release!:(response:Response)=>void;
+    serve(()=>new Promise<Response>(resolve=>{release=resolve;}));
+    const pending=restoreSession(true),dependent=restoreSession();
+    assert.equal(dependent,pending);
+    assert.equal(requests.length,1);
+    release(response({success:true,data:bundle()}));
+    await dependent;
+});
+
+test("a changed cookie session for the same account preserves the editor identity during reconciliation",async()=>{
+    const current=bundle(),next={...bundle("new-sid"),user:current.user};
+    useUserStore.getState().setSession(current);
+    const identities:Array<number|undefined>=[];
+    const unsubscribe=useUserStore.subscribe(state=>identities.push(state.user?.id));
+    serve(()=>requests.length===1?response({success:false,code:"AUTH_SESSION_MISMATCH"},409):response({success:true,data:next}));
+    try{await restoreSession(true);assert.deepEqual(identities,[1]);assert.equal(useUserStore.getState().session?.session.sid,"new-sid");}finally{unsubscribe();}
 });
