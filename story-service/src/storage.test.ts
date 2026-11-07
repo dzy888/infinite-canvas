@@ -111,7 +111,7 @@ async function runtimeProbe() {
   ]);
   assert.equal(search.search("灯塔", { scope: "memory" })[0]?.id, "clue");
   const episodes = new CreativeEpisodeStore(
-    join(root, ".inkos", "harness.sqlite"),
+    join(root, ".inkos", "legacy-episodes.sqlite"),
   );
   episodes.create({
     version: HARNESS_VERSION,
@@ -173,7 +173,7 @@ else
         const { LocalSearchIndex } =
           await import("../vendor/core/src/retrieval/local-search.js");
         const old = new CreativeEpisodeStore(
-          join(root, ".inkos", "harness.sqlite"),
+          join(root, ".inkos", "legacy-episodes.sqlite"),
         );
         old.create({
           version: HARNESS_VERSION,
@@ -258,12 +258,12 @@ else
           join(root, "works", "legacy", "work.json"),
           JSON.stringify(work),
         );
-        const original = await readFile(join(root, ".inkos", "harness.sqlite"));
+        const original = await readFile(join(root, ".inkos", "legacy-episodes.sqlite"));
         const imported = await importLegacyStories(storage, owner, root);
         assert.equal(imported?.records, 4);
         assert.equal(imported?.searchDocuments, 1);
         assert.deepEqual(
-          await readFile(join(root, ".inkos", "harness.sqlite")),
+          await readFile(join(root, ".inkos", "legacy-episodes.sqlite")),
           original,
         );
         assert.equal(
@@ -309,7 +309,7 @@ else
         const events = await Promise.all(
           Array.from({ length: 12 }, () =>
             storage.operate(owner, "episode.append", {
-              namespace: ".inkos/harness.sqlite",
+              namespace: ".inkos/legacy-episodes.sqlite",
               event: {
                 version: HARNESS_VERSION,
                 episodeId: "legacy-episode",
@@ -405,7 +405,7 @@ else
               `EXPLAIN SELECT * FROM "${storage.schema}".files WHERE user_id=41 AND parent_path='chapters' ORDER BY name`,
             ),
             await client.query(
-              `EXPLAIN SELECT max(ordinal) FROM "${storage.schema}".records WHERE user_id=41 AND namespace='.inkos/harness.sqlite' AND kind='episode-event' AND parent_id='legacy-episode'`,
+              `EXPLAIN SELECT max(ordinal) FROM "${storage.schema}".records WHERE user_id=41 AND namespace='.inkos/legacy-episodes.sqlite' AND kind='episode-event' AND parent_id='legacy-episode'`,
             ),
             await client.query(
               `EXPLAIN SELECT * FROM "${storage.schema}".search_documents WHERE tokens @@ plainto_tsquery('simple','灯塔')`,

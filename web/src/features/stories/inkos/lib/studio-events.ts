@@ -1,3 +1,4 @@
+import { appendLocalTranscript } from "@/features/stories/local-chat-storage";
 import { storyUrl } from "@/features/stories/transport";
 import { refreshPlatformAccount } from "@/services/api/new-api-platform";
 import { fetchJson } from "../hooks/use-api";
@@ -21,6 +22,10 @@ export function subscribeStudioEvents(url = "/inkos-api/v1/events"): Subscriptio
     const source = new EventSource(storyUrl(endpoint));
     connection = { source, subscribers: new Set(), events: new Set() };
     connections.set(endpoint, connection);
+    source.addEventListener("session:local", ((event: MessageEvent) => {
+      try { const data=JSON.parse(event.data); void appendLocalTranscript(data.sessionId,data.transcript).catch(error=>window.dispatchEvent(new CustomEvent("dmx:chat-storage-error",{detail:(error as Error).message}))); }
+      catch(error){window.dispatchEvent(new CustomEvent("dmx:chat-storage-error",{detail:(error as Error).message}));}
+    }) as EventListener);
     const current = connection;
     source.onopen = () => { for (const item of current.subscribers) { item.onopen?.(); item.replay(); } };
     source.onerror = () => { for (const item of current.subscribers) item.onerror?.(); };

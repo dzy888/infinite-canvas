@@ -1,3 +1,4 @@
+import { localChatTransport } from "./local-chat-transport";
 import { assertAccountOwner } from "@/lib/account-storage";
 import { restoreSession, AuthError } from "@/services/api/new-api-auth";
 import { useUserStore } from "@/stores/use-user-store";
@@ -20,10 +21,12 @@ export const storyFetch: typeof fetch = async (input, init) => {
     new Headers(init?.headers).forEach((v, k) => headers.set(k, v));
     headers.set("Authorization", "Bearer " + session.access_token);
     headers.set("X-Dmx-Owner", String(session.user.id));
-    const result = await fetch(input instanceof Request ? new Request(input, { ...init, headers }) : storyUrl(url.pathname + url.search), { ...init, headers, credentials: "same-origin" });
-    assertAccountOwner(session.user.id);
-    if (useUserStore.getState().user?.id !== session.user.id) throw new AuthError("auth.sessionChanged", 409);
-    return result;
+    return localChatTransport(url, { ...init, headers, credentials: "same-origin" }, async (next) => {
+        const result = await fetch(input instanceof Request ? new Request(input, next) : storyUrl(url.pathname + url.search), next);
+        assertAccountOwner(session.user.id);
+        if (useUserStore.getState().user?.id !== session.user.id) throw new AuthError("auth.sessionChanged", 409);
+        return result;
+    });
 };
 export function storyPreferenceKey(key: string) {
     return `dmxvideo:user:${useUserStore.getState().user?.id}:story:${key}`;

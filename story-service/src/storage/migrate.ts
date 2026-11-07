@@ -1,3 +1,4 @@
+import { isClientSessionPath } from "./client-session-path.js";
 import { databaseSnapshot } from "./snapshot.js";
 import { createHash } from "node:crypto";
 import { readdir, readFile, lstat } from "node:fs/promises";
@@ -62,6 +63,8 @@ export async function importLegacyStories(
     for (const entry of entries) {
       const path = join(directory, entry.name),
         key = relative(root, path).split(sep).join("/");
+      if (isClientSessionPath(key) || key.startsWith(".inkos/harness.sqlite"))
+        continue;
       if ((await lstat(path)).isSymbolicLink())
         throw new Error("Story migration does not follow symbolic links");
       if (entry.isDirectory()) {

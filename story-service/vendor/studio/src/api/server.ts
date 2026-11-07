@@ -1626,11 +1626,12 @@ interface ServiceProbeResult {
   error?: string;
 }
 
-function broadcast(event: string, data: unknown): void {
+export function publishStudioEvent(event: string, data: unknown): void {
   for (const handler of subscribers) {
     handler(event, data);
   }
 }
+const broadcast = publishStudioEvent;
 
 function deriveBookIdFromTitle(title: string): string {
   return title
@@ -6656,7 +6657,11 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
     return c.json({ assetRef, rev });
   });
 
-  return app;
+  return Object.assign(app, { releaseLocalSession(sessionId: string) {
+    if (chatRequests.get(sessionId)?.snapshot.status === "running" || reservedProductionSessions.has(sessionId)) return false;
+    chatRequests.delete(sessionId);
+    return true;
+  } });
 }
 
 // --- Standalone runner ---

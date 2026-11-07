@@ -1,3 +1,4 @@
+import { handlesMemoryOperation, memoryOperation } from "./session-memory.js";
 import {
   Worker,
   MessageChannel,
@@ -21,6 +22,7 @@ export async function storageRequest<T = any>(
   op: string,
   args: Record<string, any>,
 ): Promise<T> {
+  if (handlesMemoryOperation(op, args)) return memoryOperation(op, args);
   const response = await fetch(process.env.DMX_STORY_STORAGE_URL!, {
     method: "POST",
     headers: {
@@ -42,6 +44,7 @@ export async function storageRequest<T = any>(
 }
 let transport: { worker: Worker; port: MessagePort } | undefined;
 export function storageSync<T = any>(op: string, args: Record<string, any>): T {
+  if (handlesMemoryOperation(op, args)) return memoryOperation(op, args);
   if (!transport) {
     const { port1, port2 } = new MessageChannel();
     const worker = new Worker(

@@ -183,14 +183,18 @@ for (const postgres of [false, true])
           {
             method: "PUT",
             headers: headers(41),
-            body: JSON.stringify({ title: "Only owner 41" }),
+            body: JSON.stringify({
+              title: "Only owner 41",
+              ...(postgres ? { localSession: created.localSession } : {}),
+            }),
           },
         );
         assert.equal(rename.status, 200, await rename.text());
         const mine = await fetch(origin + "/inkos-api/v1/sessions", {
           headers: headers(41),
         });
-        assert.match(await mine.text(), /Only owner 41/);
+        if (postgres) assert.doesNotMatch(await mine.text(), /Only owner 41/);
+        else assert.match(await mine.text(), /Only owner 41/);
         const other = await fetch(origin + "/inkos-api/v1/sessions", {
           headers: headers(42),
         });
@@ -242,12 +246,23 @@ for (const postgres of [false, true])
           headers: headers(41),
           body: JSON.stringify({ sessionKind: "chat" }),
         });
-        const chat = (await chatCreate.json()).session;
+        const chatCreated = await chatCreate.json();
+        const chat = chatCreated.session;
         const run = await fetch(origin + "/inkos-api/v1/agent", {
           method: "POST",
           headers: headers(41),
           body: JSON.stringify({
             instruction: "Give me a story idea",
+            attachments: [
+              {
+                filename: "notes.txt",
+                mediaType: "text/plain",
+                dataUrl:
+                  "data:text/plain;base64," +
+                  Buffer.from("人物：林青").toString("base64"),
+              },
+            ],
+            ...(postgres ? { localSession: chatCreated.localSession } : {}),
             sessionId: chat.sessionId,
             model: encodeModel("writing-model", "chat"),
             service: "custom",
@@ -259,6 +274,81 @@ for (const postgres of [false, true])
         assert.equal(relayed[0]!.authorization, "Bearer " + token(41));
         assert.equal(relayed[0]!.body.model, "writing-model");
         assert.match(result, /A story/);
+        if (storage) {
+          const captured = JSON.parse(result).localSession;
+          assert.ok(captured?.transcript.includes("Give me a story idea"));
+          assert.equal(Object.values(captured.uploads).length, 1);
+          assert.equal(
+            Buffer.from(
+              Object.values(captured.uploads)[0] as string,
+              "base64",
+            ).toString(),
+            "人物：林青",
+          );
+          const lookup = await fetch(
+            origin + "/inkos-api/v1/sessions/" + chat.sessionId,
+            { headers: headers(41) },
+          );
+          assert.equal(
+            lookup.status,
+            404,
+            "idle transcripts must be released from the server",
+          );
+          const followup = await fetch(origin + "/inkos-api/v1/agent", {
+            method: "POST",
+            headers: headers(41),
+            body: JSON.stringify({
+              instruction: "Continue using my previous story idea",
+              sessionId: chat.sessionId,
+              localSession: captured,
+              model: encodeModel("writing-model", "chat"),
+              service: "custom",
+            }),
+          });
+          const continued = await followup.text();
+          assert.equal(followup.status, 200, continued);
+          assert.match(
+            JSON.stringify(relayed.at(-1)?.body),
+            /Give me a story idea/,
+          );
+          const prefix = `"${storage.schema}".`;
+          const persisted = await storage.pool.query(
+            `SELECT path FROM ${prefix}files WHERE user_id=41 AND (path LIKE '.inkos/sessions/%' OR path LIKE '.inkos/chat-requests/%' OR path LIKE '.inkos/tasks/%' OR path LIKE '.inkos/uploads/%' OR path='.inkos/harness.sqlite')`,
+          );
+          assert.equal(
+            persisted.rowCount,
+            0,
+            "chat text, retries, uploads and episode inputs must not enter PostgreSQL",
+          );
+          assert.equal(
+            Number(
+              (
+                await storage.pool.query(
+                  `SELECT count(*) FROM ${prefix}records WHERE user_id=41 AND namespace='.inkos/harness.sqlite'`,
+                )
+              ).rows[0].count,
+            ),
+            0,
+          );
+          const native = await import("node:fs/promises");
+          for (const name of [
+            "sessions",
+            "chat-requests",
+            "tasks",
+            "uploads",
+          ]) {
+            await assert.rejects(
+              native.access(join(dir, "41", ".inkos", name)),
+              { code: "ENOENT" },
+            );
+          }
+          await assert.rejects(
+            storage.operate(41, "files.write", {
+              path: ".inkos/sessions/forbidden.jsonl",
+              content: "",
+            }),
+          );
+        }
         const missing = await fetch(
           origin + "/inkos-api/v1/sessions/" + session.sessionId,
           { headers: headers(42) },

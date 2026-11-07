@@ -1,3 +1,8 @@
+import {
+  readLegacyChats,
+  legacyChatSessions,
+  removeLegacyChats,
+} from "./storage/legacy-chats.js";
 import { PostgresStoryStorage } from "./storage/postgres.js";
 import { importLegacyStories } from "./storage/migrate.js";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -191,6 +196,7 @@ export function createStoryGateway(options: GatewayOptions) {
           TSX_DISABLE_CACHE: "1",
           DMX_BUILTIN_SKILLS: join(serviceDir, "vendor/core/skills"),
           DMX_STORY_ROOT: root,
+          DMX_STORY_CLIENT_SESSIONS: options.storage ? "1" : "0",
           DMX_STORY_STORAGE: options.storage ? "postgres" : "filesystem",
           DMX_STORY_STORAGE_URL: internalOrigin + "/internal/storage",
           DMX_STORY_KEY: key,
@@ -413,6 +419,31 @@ export function createStoryGateway(options: GatewayOptions) {
   app.all("/inkos-api/v1/*", async (c) => {
     const session = c.get("storySession" as never) as Session;
     const path = c.req.path.slice("/inkos-api/v1".length);
+    if (
+      path === "/sessions" &&
+      c.req.query("source") === "server" &&
+      options.storage
+    ) {
+      const root = join(options.dataDir, String(session.user.id));
+      if (c.req.method === "GET") {
+        const archive = await readLegacyChats(
+          options.storage,
+          session.user.id,
+          root,
+        );
+        return c.json({ archive, sessions: legacyChatSessions(archive) });
+      }
+      if (c.req.method === "DELETE") {
+        const body = await c.req.json<{ checksum: string }>();
+        await removeLegacyChats(
+          options.storage,
+          session.user.id,
+          root,
+          body.checksum,
+        );
+        return c.json({ ok: true });
+      }
+    }
     const worker = await workerFor(session);
     const configPath = join(worker.root, "inkos.json");
     const config = await readAccountConfig(session.user.id, worker.root);

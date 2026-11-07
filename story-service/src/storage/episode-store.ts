@@ -11,10 +11,31 @@ import {
   type EpisodeStatus,
 } from "../../vendor/core/src/harness/contracts.js";
 import { databasePath, enabled, storageSync } from "./client.js";
+const inMemoryEpisodes = new Map<string, FileEpisodeStore>();
 export class CreativeEpisodeStore {
   private namespace: string;
   constructor(path: string) {
     this.namespace = path;
+    if (process.env.DMX_STORY_CLIENT_SESSIONS === "1") {
+      const current = () => {
+        let store = inMemoryEpisodes.get(path);
+        if (!store) {
+          store = new FileEpisodeStore(":memory:");
+          inMemoryEpisodes.set(path, store);
+        }
+        return store;
+      };
+      return new Proxy(current(), {
+        get(_target, key) {
+          if (key === "close") return () => {};
+          const value = Reflect.get(current(), key);
+          return typeof value === "function"
+            ? (...args: unknown[]) =>
+                Reflect.get(current(), key).apply(current(), args)
+            : value;
+        },
+      }) as unknown as CreativeEpisodeStore;
+    }
     if (!enabled)
       return new FileEpisodeStore(path) as unknown as CreativeEpisodeStore;
     this.namespace = databasePath(path);
@@ -157,4 +178,12 @@ export class CreativeEpisodeStore {
     return recovered;
   }
   close() {}
+}
+
+export function releaseMemoryEpisodes() {
+  for (const [path, store] of inMemoryEpisodes)
+    if (!store.listEpisodes({ status: "running" }).length) {
+      store.close();
+      inMemoryEpisodes.delete(path);
+    }
 }

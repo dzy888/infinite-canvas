@@ -1,3 +1,4 @@
+import { isClientSessionPath } from "./client-session-path.js";
 import { databaseSnapshot } from "./snapshot.js";
 import { HARNESS_VERSION } from "../../vendor/core/src/harness/contracts.js";
 import { Pool, type PoolClient } from "pg";
@@ -237,6 +238,29 @@ export class PostgresStoryStorage {
     const path = args.path === undefined ? undefined : this.path(args.path);
     const namespace =
       args.namespace === undefined ? undefined : this.path(args.namespace);
+    if (
+      op.startsWith("files.") &&
+      !["files.read", "files.list", "files.stat", "files.remove"].includes(op)
+    ) {
+      const paths =
+        op === "files.commit"
+          ? [
+              ...(args.writes ?? []).map((w: any) => w.path),
+              ...(args.deletes ?? []),
+            ]
+          : [path, args.target];
+      if (paths.some(isClientSessionPath))
+        throw new Error(
+          "Chat records belong in the client browser, not PostgreSQL",
+        );
+    }
+    if (
+      namespace === ".inkos/harness.sqlite" &&
+      !["records.get", "records.list"].includes(op)
+    )
+      throw new Error(
+        "Creative chat request tracking must remain in runtime memory",
+      );
     switch (op) {
       case "files.stat": {
         const row = (

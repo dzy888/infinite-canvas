@@ -1,3 +1,4 @@
+import { ChatBackup } from "@/features/stories/ChatBackup";
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "../hooks/use-api";
 import { useNewSSEMessages, type SSEMessage } from "../hooks/use-sse";
@@ -606,6 +607,8 @@ export function Sidebar({ nav, activePage, sse, t }: {
           </div>
         </div>
       </div>
+
+      <div className="px-4 py-3 border-t border-border"><ChatBackup /></div>
 
       {/* Footer / Status Area — only show when agent is online */}
       {daemon?.running && (

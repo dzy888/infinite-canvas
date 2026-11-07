@@ -42,13 +42,17 @@ export async function readTranscriptEvents(
     throw error;
   }
 
+  return parseTranscriptEvents(raw, transcriptPath(projectRoot, sessionId));
+}
+
+export function parseTranscriptEvents(raw: string, path: string): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   for (const [index, line] of raw.split(/\r?\n/).entries()) {
     if (!line.trim()) continue;
     try {
       events.push(TranscriptEventSchema.parse(JSON.parse(line)));
     } catch (error) {
-      throw new Error(`Invalid transcript event at ${transcriptPath(projectRoot, sessionId)}:${index + 1}: ${String(error)}`);
+      throw new Error(`Invalid transcript event at ${path}:${index + 1}: ${String(error)}`);
     }
   }
 

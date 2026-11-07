@@ -437,6 +437,7 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageActions>
       const data = snapshot ?? await fetchJson<SessionResponse>(`/sessions/${sessionId}`);
       const current = get().sessions[sessionId];
       if (current?.isChatStreaming && current.stream !== existing?.stream) return false;
+      const localUI = (data as SessionResponse & {localUI?: import("@/features/stories/local-chat-storage").LocalChatUI}).localUI;
       const detail = data.session;
       if (!detail?.sessionId) return false;
       const detailSessionId = detail.sessionId;
@@ -445,7 +446,7 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageActions>
       const taskRunning = task?.execution.status === "running" || task?.execution.status === "processing";
       const chatRunning = data.chatRequest?.status === "running";
       const isRunning = taskRunning || chatRunning;
-      let restoredMessages: ReadonlyArray<ReturnType<typeof deserializeMessages>[number]> = persistedMessages;
+      let restoredMessages: ReadonlyArray<ReturnType<typeof deserializeMessages>[number]> = localUI?.messages ?? persistedMessages;
       if (task) restoredMessages = mergeTaskExecution(restoredMessages, task.execution);
       for (const execution of data.chatRequest?.toolExecutions ?? []) {
         restoredMessages = mergeToolExecution(restoredMessages, execution);
@@ -493,6 +494,7 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageActions>
               serviceOverride: detail.serviceOverride ?? runtime?.serviceOverride,
               title: detail.title ?? runtime?.title ?? null,
               messages: nextMessages,
+              ...(localUI ? { lastFailedSend:localUI.lastFailedSend,lastError:localUI.lastError } : {}),
               isStreaming: isRunning,
               isChatStreaming: chatRunning,
               detachedChatRequestId: chatRunning ? data.chatRequest!.requestId : undefined,
